@@ -91,5 +91,6 @@ schemes:
         - DroneSimTests
         - DroneSimUITests
       testPlans:
-        - Fast
-        - Full
+        - path: Fast.xctestplan
+          defaultPlan: true
+        - path: Full.xctestplan
