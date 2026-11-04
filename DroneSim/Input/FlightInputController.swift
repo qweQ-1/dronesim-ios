@@ -37,7 +37,9 @@ final class VirtualJoystick: UIView {
 
     private func setup() {
         backgroundColor = .clear
-        isUserInteractionEnabled = false   // 触摸由父视图统一分发
+        // 摇杆自己接收触摸：区域是屏幕下半部分的固定矩形，
+        // 命中测试按「离摇杆中心最近的半边」分配，避免两个摇杆互相抢。
+        isUserInteractionEnabled = true
 
         baseCircle.fillColor = UIColor.black.withAlphaComponent(0.22).cgColor
         baseCircle.strokeColor = UIColor.white.withAlphaComponent(0.35).cgColor
@@ -108,6 +110,41 @@ final class VirtualJoystick: UIView {
     /// - Parameter index: 0 = 水平，1 = 垂直（向上为正）
     func axis(_ index: Int) -> Float {
         index == 0 ? Float(value.x) : Float(value.y)
+    }
+
+    // MARK: 触摸
+
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        // 只有按下点在「离本摇杆中心更近」的那半屏才响应
+        guard let window else { return false }
+        let screenPoint = convert(point, to: window)
+        let midX = window.bounds.midX
+        return screenPoint.x < midX ? isLeftStick : !isLeftStick
+    }
+
+    /// 是否是左半屏的摇杆（左半屏归属左摇杆）。
+    var isLeftStick: Bool = true
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        guard let touch = touches.first else { return }
+        begin(touch: touch, at: touch.location(in: self))
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesMoved(touches, with: event)
+        guard let touch = touches.first else { return }
+        move(to: touch.location(in: self))
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        end()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        end()
     }
 }
 

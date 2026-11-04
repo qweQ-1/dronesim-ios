@@ -129,7 +129,7 @@ public struct Quat: Equatable, Sendable {
             let s = (1 + m22 - m00 - m11).squareRoot() * 2
             w = (m10 - m01) / s
             x = (m02 + m20) / s
-            y = (m12 + m21) /s
+            y = (m12 + m21) / s
             z = 0.25 * s
         }
         let n = normalized

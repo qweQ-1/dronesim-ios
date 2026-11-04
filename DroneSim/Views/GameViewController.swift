@@ -39,9 +39,6 @@ final class GameViewController: UIViewController {
     /// 暂停。
     private var isPaused = false
 
-    /// 触摸追踪：触点 → 归属的摇杆。
-    private var touchSticks: [ObjectIdentifier: VirtualJoystick] = [:]
-
     /// 场景参数。
     private let terrainSize: Float = 320
     private let terrainResolution = 192
@@ -282,46 +279,10 @@ final class GameViewController: UIViewController {
         ])
     }
 
-    // MARK: 触摸分发
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        for touch in touches {
-            guard touch.view === controlOverlay || touch.view === metalView else { continue }
-            let point = touch.location(in: controlOverlay)
-            // 左半屏 → 左摇杆，右半屏 → 右摇杆
-            let stick: VirtualJoystick = point.x < view.bounds.midX
-                ? controlOverlay.leftStick
-                : controlOverlay.rightStick
-            guard !stick.isActive else { continue }
-            stick.begin(touch: touch, at: point)
-            touchSticks[ObjectIdentifier(touch)] = stick
-        }
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesMoved(touches, with: event)
-        for touch in touches {
-            guard let stick = touchSticks[ObjectIdentifier(touch)] else { continue }
-            stick.move(to: touch.location(in: controlOverlay))
-        }
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
-        for touch in touches {
-            guard let stick = touchSticks.removeValue(forKey: ObjectIdentifier(touch)) else { continue }
-            stick.end()
-        }
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesCancelled(touches, with: event)
-        for touch in touches {
-            guard let stick = touchSticks.removeValue(forKey: ObjectIdentifier(touch)) else { continue }
-            stick.end()
-        }
-    }
+    // MARK: 触摸
+    //
+    // 摇杆自己处理触摸（见 VirtualJoystick 的 point(inside:)，按屏幕左右半区分配），
+    // 按钮自己处理 touchesEnded，所以这里不需要再转发事件。
 
     // MARK: 动作
 

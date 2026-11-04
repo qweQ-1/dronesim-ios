@@ -36,19 +36,23 @@ final class ControlOverlayView: UIView {
 
         leftStick.translatesAutoresizingMaskIntoConstraints = false
         rightStick.translatesAutoresizingMaskIntoConstraints = false
+        leftStick.isLeftStick = true
+        rightStick.isLeftStick = false
         addSubview(leftStick)
         addSubview(rightStick)
 
+        // 摇杆视图铺满左右半屏，这样屏幕上任何位置的拖动都能被对应的摇杆捕获，
+        // 而摇杆图案只画在实际接触点附近（见 VirtualJoystick 的绘制逻辑）。
         NSLayoutConstraint.activate([
-            leftStick.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -20),
-            leftStick.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor, constant: 24),
-            leftStick.widthAnchor.constraint(equalToConstant: 150),
-            leftStick.heightAnchor.constraint(equalToConstant: 150),
+            leftStick.topAnchor.constraint(equalTo: topAnchor),
+            leftStick.bottomAnchor.constraint(equalTo: bottomAnchor),
+            leftStick.leadingAnchor.constraint(equalTo: leadingAnchor),
+            leftStick.trailingAnchor.constraint(equalTo: centerXAnchor),
 
-            rightStick.bottomAnchor.constraint(equalTo: safeAreaLayoutGuide.bottomAnchor, constant: -20),
-            rightStick.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -24),
-            rightStick.widthAnchor.constraint(equalToConstant: 150),
-            rightStick.heightAnchor.constraint(equalToConstant: 150),
+            rightStick.topAnchor.constraint(equalTo: topAnchor),
+            rightStick.bottomAnchor.constraint(equalTo: bottomAnchor),
+            rightStick.leadingAnchor.constraint(equalTo: centerXAnchor),
+            rightStick.trailingAnchor.constraint(equalTo: trailingAnchor),
         ])
 
         // 按钮组：右侧竖排
