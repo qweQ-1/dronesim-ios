@@ -1,22 +1,22 @@
-import SwiftUI
+import UIKit
 
+/// App 入口（纯 UIKit，避免 SwiftUI 生命周期带来的构建不确定性）。
 @main
-struct DroneSimApp: App {
-    var body: some Scene {
-        WindowGroup {
-            GameViewControllerRepresentable()
-                .ignoresSafeArea()
-                .statusBarHidden(true)
-                .persistentSystemOverlays(.hidden)
-        }
-    }
-}
+final class AppDelegate: UIResponder, UIApplicationDelegate {
+    var window: UIWindow?
 
-/// 用 UIKit 桥接 SwiftUI（Metal 视图用 UIViewController 更直接）。
-struct GameViewControllerRepresentable: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> GameViewController {
-        GameViewController()
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        let window = UIWindow(frame: UIScreen.main.bounds)
+        window.rootViewController = GameViewController()
+        window.makeKeyAndVisible()
+        self.window = window
+        return true
     }
 
-    func updateUIViewController(_ uiViewController: GameViewController, context: Context) {}
+    func application(_ application: UIApplication,
+                     supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        // 只允许横屏
+        return .landscape
+    }
 }

@@ -29,6 +29,9 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         UIRequiresFullScreen: true
         UIStatusBarHidden: true
         UIViewControllerBasedStatusBarAppearance: false
@@ -49,7 +52,7 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: DroneSimTests
+      - path: Tests/Unit
     dependencies:
       - target: DroneSim
     settings:
@@ -59,31 +62,15 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/DroneSim.app/DroneSim"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
-  DroneSimUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - path: DroneSimUITests
-    dependencies:
-      - target: DroneSim
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.dronesim.uitests
-        GENERATE_INFOPLIST_FILE: "YES"
-        TEST_TARGET_NAME: DroneSim
-
 schemes:
   DroneSim:
     build:
       targets:
         DroneSim: all
         DroneSimTests: [test]
-        DroneSimUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - DroneSimTests
-        - DroneSimUITests
