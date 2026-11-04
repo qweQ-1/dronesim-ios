@@ -383,13 +383,13 @@ final class MetalRenderer {
 
     /// 渲染一帧。
     func render(dronePosition: SIMD3<Float>, droneAttitude: simd_quatf,
-                time: Float, in view: MTLTexture, depthAttachment: MTLTexture?) {
+                time: Float, in view: MTLDrawable, depthAttachment: MTLTexture?) {
         drawCallCount = 0
         triangleCount = 0
 
         guard let commandBuffer = commandQueue.makeCommandBuffer() else { return }
         let passDesc = MTLRenderPassDescriptor()
-        passDesc.colorAttachments[0].texture = view
+        passDesc.colorAttachments[0].texture = view.texture
         passDesc.colorAttachments[0].loadAction = .clear
         passDesc.colorAttachments[0].storeAction = .store
         passDesc.colorAttachments[0].clearColor = MTLClearColor(red: 0.55, green: 0.66, blue: 0.78, alpha: 1)
@@ -415,8 +415,10 @@ final class MetalRenderer {
                 params: SIMD4<Float>(0.0022, 0, 0, 0),
                 count: 0
             )
-            encoder.setVertexBuffer(&instancedUniforms, offset: 0, index: 0)
-            encoder.setFragmentBuffer(&instancedUniforms, offset: 0, index: 0)
+            withUnsafeBytes(of: &instancedUniforms) { buf in
+                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+            }
 
             for i in propMeshes.indices {
                 let count = propInstanceCounts[i]
@@ -446,8 +448,10 @@ final class MetalRenderer {
                 cameraPos: SIMD4<Float>(cameraPosition, 0)
             )
             encoder.setVertexBuffer(vb, offset: 0, index: Self.vertexBufferIndex)
-            encoder.setVertexBuffer(&objectUniforms, offset: 0, index: Self.uniformBufferIndex)
-            encoder.setFragmentBuffer(&objectUniforms, offset: 0, index: 0)
+            withUnsafeBytes(of: &objectUniforms) { buf in
+                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: Self.uniformBufferIndex)
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+            }
             encoder.setIndexBuffer(ib, offset: 0, indexForVertex: 0)
             encoder.drawIndexedPrimitives(type: .triangle,
                                           indexCount: droneIndexCount,
@@ -469,8 +473,10 @@ final class MetalRenderer {
                 params: SIMD4<Float>(0.0021, time, 0, 0)
             )
             encoder.setVertexBuffer(vb, offset: 0, index: Self.vertexBufferIndex)
-            encoder.setVertexBuffer(&terrainUniforms, offset: 0, index: Self.uniformBufferIndex)
-            encoder.setFragmentBuffer(&terrainUniforms, offset: 0, index: 0)
+            withUnsafeBytes(of: &terrainUniforms) { buf in
+                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: Self.uniformBufferIndex)
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+            }
             encoder.setIndexBuffer(ib, offset: 0, indexForVertex: 0)
             encoder.drawIndexedPrimitives(type: .triangle,
                                           indexCount: terrainIndexCount,
@@ -487,11 +493,23 @@ final class MetalRenderer {
             skyInvViewProjection = invViewProjection
             skyCameraPosition = cameraPosition
             skyTime = time
-            encoder.setVertexBuffer(&skyInvViewProjection, offset: 0, index: 0)
-            encoder.setVertexBuffer(&skyCameraPosition, offset: 0, index: 1)
-            encoder.setFragmentBuffer(&sunDirection, offset: 0, index: 0)
-            encoder.setFragmentBuffer(&skyCameraPosition, offset: 0, index: 1)
-            encoder.setFragmentBuffer(&skyTime, offset: 0, index: 2)
+            // 用 withUnsafeBytes 显式传指针：
+            // setVertexBuffer 有多个重载，直接传 &var 会被 Swift 解析成 MTLBuffer? 版本而报错。
+            withUnsafeBytes(of: &skyInvViewProjection) { buf in
+                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 0)
+            }
+            withUnsafeBytes(of: &skyCameraPosition) { buf in
+                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 1)
+            }
+            withUnsafeBytes(of: &sunDirection) { buf in
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+            }
+            withUnsafeBytes(of: &skyCameraPosition) { buf in
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 1)
+            }
+            withUnsafeBytes(of: &skyTime) { buf in
+                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 2)
+            }
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             drawCallCount += 1
         }

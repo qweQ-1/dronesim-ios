@@ -193,7 +193,7 @@ final class GameViewController: UIViewController {
         renderer.setCamera(position: camPos, forward: camForward, up: camUp,
                            fovDegrees: fov, aspect: aspect)
         renderer.render(dronePosition: dronePos, droneAttitude: attitude,
-                        time: elapsed, in: drawable.texture, depthAttachment: nil)
+                        time: elapsed, in: drawable, depthAttachment: nil)
     }
 
     /// 计算相机参数。

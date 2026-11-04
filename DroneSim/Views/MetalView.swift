@@ -26,9 +26,10 @@ final class MetalView: UIView {
         metalLayer.pixelFormat = .bgra8Unorm
         metalLayer.framebufferOnly = true
         metalLayer.isOpaque = true
-        // 三缓冲，交给系统去匹配屏幕刷新率
+        // 三缓冲，交给系统去匹配屏幕刷新率。
+        // 注意：displaySyncEnabled 在 iOS 上不可用（只有 macOS 有），
+        // iOS 上 Metal 层本身就与屏幕刷新率同步，不要设置。
         metalLayer.maximumDrawableCount = 3
-        metalLayer.displaySyncEnabled = true
         metalLayer.presentsWithTransaction = false
     }
 
