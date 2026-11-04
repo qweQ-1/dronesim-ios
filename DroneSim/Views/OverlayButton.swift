@@ -52,6 +52,13 @@ final class OverlayButton: UIView {
         titleLabel.text = title
     }
 
+    /// 无障碍标识（UI 测试用）。
+    func setIdentifier(_ identifier: String) {
+        accessibilityIdentifier = identifier
+        isAccessibilityElement = true
+        accessibilityLabel = titleLabel.text
+    }
+
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
         onTap?()

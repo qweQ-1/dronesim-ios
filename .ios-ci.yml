@@ -7,7 +7,7 @@ project: DroneSim.xcodeproj
 scheme: DroneSim
 bundle_id: com.qweq-1.dronesim
 display_name: '无人机模拟'
-generate_command: xcodegen generate
+generate_command: xcodegen generate && python3 Scripts/sync-test-plans.py
 
 # 工具链：显式固定
 toolchain:
@@ -16,6 +16,9 @@ toolchain:
   ios: '26.4'
 
 build_test:
+  fast_test_plan: Fast
+  full_test_plan: Full
+  ui_test_target: DroneSimUITests
   accessibility_audit: warn
 
 testflight:

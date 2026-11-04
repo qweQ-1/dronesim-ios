@@ -19,3 +19,6 @@ build/
 
 # XcodeGen 生成的 Info.plist（由 project.yml 的 info 段生成）
 DroneSim/Info.plist
+
+# XcodeGen 生成的测试计划里的 target ID 由 Scripts/sync-test-plans.py 填，
+# 但 .xctestplan 本身要入库（CI 需要它）。

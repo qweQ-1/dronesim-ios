@@ -58,6 +58,13 @@ final class ControlOverlayView: UIView {
         // 按钮组：右侧竖排
         let buttons = [armButton, cameraButton, modeButton, altitudeButton,
                        motionButton, pauseButton, resetButton]
+        armButton.setIdentifier("button.arm")
+        cameraButton.setIdentifier("button.camera")
+        modeButton.setIdentifier("button.mode")
+        altitudeButton.setIdentifier("button.altitude")
+        motionButton.setIdentifier("button.motion")
+        pauseButton.setIdentifier("button.pause")
+        resetButton.setIdentifier("button.reset")
         var previousButton: OverlayButton?
         for button in buttons {
             button.translatesAutoresizingMaskIntoConstraints = false
