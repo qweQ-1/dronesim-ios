@@ -221,8 +221,9 @@ final class FlightInputController {
             if let motion = motionManager.deviceMotion {
                 let pitch = motion.attitude.pitch - (referenceAttitude?.pitch ?? 0)
                 let roll = motion.attitude.roll - (referenceAttitude?.roll ?? 0)
-                newInput.pitch = Float(clamp(Double(pitch / 0.45), -1, 1))
-                newInput.roll = Float(clamp(Double(roll / 0.45), -1, 1))
+                // 陀螺仪读数是 Double，用 Swift 原生的 min/max 限幅
+                newInput.pitch = Float(min(max(pitch / 0.45, -1), 1))
+                newInput.roll = Float(min(max(roll / 0.45, -1), 1))
             }
         } else {
             newInput.roll = attitudeStick.axis(0)
