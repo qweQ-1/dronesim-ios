@@ -181,7 +181,8 @@ public struct FlightState: Equatable, Sendable {
         onGround: Bool = true,
         lastImpactNormal: Vec3 = Vec3(0, 1, 0),
         lastImpactSpeed: Float = 0,
-        thrustHeadroom: Float = 1
+        thrustHeadroom: Float = 1,
+        initialHeading: Float = 0
     ) {
         self.position = position
         self.velocity = velocity

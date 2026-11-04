@@ -104,6 +104,7 @@ public struct AltitudeController: Sendable {
         self.outputMin = outputMin
         self.outputMax = outputMax
         self.maxClimbRate = maxClimbRate
+        self.integral = 0
     }
 
     /// 计算油门指令（0...1）。
