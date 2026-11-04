@@ -1,0 +1,89 @@
+name: DroneSim
+options:
+  bundleIdPrefix: com.qweq-1
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_STYLE: Automatic
+    TARGETED_DEVICE_FAMILY: "1,2"
+
+targets:
+  DroneSim:
+    type: application
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: DroneSim
+    info:
+      path: DroneSim/Info.plist
+      properties:
+        CFBundleDisplayName: "无人机模拟"
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIRequiresFullScreen: true
+        UIStatusBarHidden: true
+        UIViewControllerBasedStatusBarAppearance: false
+        ITSAppUsesNonExemptEncryption: false
+        CADisableMinimumFrameDurationOnPhone: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.dronesim
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        ENABLE_PREVIEWS: "YES"
+        MTL_FAST_MATH: "YES"
+
+  DroneSimTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: DroneSimTests
+    dependencies:
+      - target: DroneSim
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.dronesim.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/DroneSim.app/DroneSim"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  DroneSimUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: DroneSimUITests
+    dependencies:
+      - target: DroneSim
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.dronesim.uitests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: DroneSim
+
+schemes:
+  DroneSim:
+    build:
+      targets:
+        DroneSim: all
+        DroneSimTests: [test]
+        DroneSimUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - DroneSimTests
+        - DroneSimUITests
