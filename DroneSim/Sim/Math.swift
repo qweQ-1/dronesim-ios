@@ -16,8 +16,8 @@ public struct Vec3: Equatable, Sendable {
         self.z = z
     }
 
-    @inlinable public static let zero = Vec3(0, 0, 0)
-    @inlinable public static let up = Vec3(0, 1, 0)
+    public static let zero = Vec3(0, 0, 0)
+    public static let up = Vec3(0, 1, 0)
 
     @inlinable public var length: Float { (x * x + y * y + z * z).squareRoot() }
 

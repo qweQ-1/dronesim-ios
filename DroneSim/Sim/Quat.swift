@@ -171,7 +171,7 @@ public struct Quat: Equatable, Sendable {
     /// 从四元数取机体角速度（与 integrated 互逆）。
     @inlinable public func bodyAngularVelocity(fromConjugateRate wq: Quat) -> Vec3 {
         let dq = wq * Quat.conjugate(self)
-        Vec3(dq.x * 2, dq.y * 2, dq.z * 2)
+        return Vec3(dq.x * 2, dq.y * 2, dq.z * 2)
     }
 
     @inlinable public static func conjugate(_ q: Quat) -> Quat { Quat(q.w, -q.x, -q.y, -q.z) }

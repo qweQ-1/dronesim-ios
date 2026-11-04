@@ -44,7 +44,7 @@ final class MetalRenderer {
     // MARK: 相机
     private var viewProjection = matrix_identity_float4x4
     private var invViewProjection = matrix_identity_float4x4
-    private var cameraPosition: SIMD3<_float> = .zero
+    private var cameraPosition: SIMD3<Float> = .zero
 
     // MARK: 光照
     private var sunDirection: SIMD3<Float> = normalize(SIMD3<Float>(0.42, 0.72, 0.34))
@@ -55,9 +55,26 @@ final class MetalRenderer {
 
     // MARK: 帧内 uniform 存储
     // Metal 的 setVertexBuffer 需要一个稳定的地址，因此 uniform 存在这里而不是局部变量。
-    private var terrainUniforms = TerrainUniforms()
-    private var objectUniforms = ObjectUniforms()
-    private var instancedUniforms = InstancedUniforms()
+    private var terrainUniforms = TerrainUniforms(
+        viewProjection: matrix_identity_float4x4,
+        model: matrix_identity_float4x4,
+        lightDir: SIMD4<Float>(0, 1, 0, 0),
+        cameraPos: SIMD4<Float>(0, 0, 0, 0),
+        params: SIMD4<Float>(0, 0, 0, 0)
+    )
+    private var objectUniforms = ObjectUniforms(
+        viewProjection: matrix_identity_float4x4,
+        model: matrix_identity_float4x4,
+        lightDir: SIMD4<Float>(0, 1, 0, 0),
+        cameraPos: SIMD4<Float>(0, 0, 0, 0)
+    )
+    private var instancedUniforms = InstancedUniforms(
+        viewProjection: matrix_identity_float4x4,
+        lightDir: SIMD4<Float>(0, 1, 0, 0),
+        cameraPos: SIMD4<Float>(0, 0, 0, 0),
+        params: SIMD4<Float>(0, 0, 0, 0),
+        count: 0
+    )
     private var skyInvViewProjection = matrix_identity_float4x4
     private var skyCameraPosition: SIMD3<Float> = .zero
     private var skyTime: Float = 0
