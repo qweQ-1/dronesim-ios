@@ -71,7 +71,8 @@ public struct DroneSpec: Equatable, Sendable {
         // T = ρ * A * v² * CT * k，其中 v = ωr
         let k = airDensity * rotorArea * ct
         guard k > 0 else { return idleRotorSpeed }
-        return ((target / k).squareRoot()).clamped(to: idleRotorSpeed...maxRotorSpeed)
+        let speed = (target / k).squareRoot()
+        return min(max(speed, idleRotorSpeed), maxRotorSpeed)
     }
 
     /// 机臂推力/扭矩耦合系数：加速转速时额外产生的反扭矩。
@@ -166,6 +167,8 @@ public struct FlightState: Equatable, Sendable {
     public var lastImpactSpeed: Float
     /// 归一化的推力余量（0 = 满推力无法再加速，1 = 无推力）。
     public var thrustHeadroom: Float
+    /// 初始航向（起飞时的机头朝向，用于偏航回中）。
+    public var initialHeading: Float
 
     public init(
         position: Vec3 = Vec3(0, 0, 0),

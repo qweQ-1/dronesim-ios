@@ -52,15 +52,6 @@ public struct BodyFrame: Equatable, Sendable {
         self.init(forward: q.forward, up: q.up)
     }
 
-    /// 机体角速度（机体系，rad/s），世界系角速度为 ω_world = q.ω ⊗ body。
-    public var bodyAngularVelocity: Vec3 {
-        get {
-            // 由正交基反推：角速度满足 ω × r = d(r)/dt。
-            // 这里用与 Quat 内部一致的约定。
-            Vec3(0, 0, 0)
-        }
-        set {}
-    }
 }
 
 // MARK: - 四元数
@@ -143,6 +134,12 @@ public struct Quat: Equatable, Sendable {
         let s = sin(h)
         self = Quat(cos(h), a.x * s, a.y * s, a.z * s).normalized
     }
+
+    /// 机体坐标 → 世界坐标。
+    @inlinable public func toWorld(_ v: Vec3) -> Vec3 { rotated(v) }
+
+    /// 世界坐标 → 机体坐标。
+    @inlinable public func toBody(_ v: Vec3) -> Vec3 { Quat.conjugate(self).rotated(v) }
 
     @inlinable public var forward: Vec3 { Vec3(0, 0, -1).rotated(by: self) }
 

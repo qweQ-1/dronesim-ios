@@ -221,8 +221,8 @@ final class FlightInputController {
             if let motion = motionManager.deviceMotion {
                 let pitch = motion.attitude.pitch - (referenceAttitude?.pitch ?? 0)
                 let roll = motion.attitude.roll - (referenceAttitude?.roll ?? 0)
-                newInput.pitch = Float(clamp(pitch / 0.45, -1, 1))
-                newInput.roll = Float(clamp(roll / 0.45, -1, 1))
+                newInput.pitch = Float(clamp(Double(pitch / 0.45), -1, 1))
+                newInput.roll = Float(clamp(Double(roll / 0.45), -1, 1))
             }
         } else {
             newInput.roll = attitudeStick.axis(0)
