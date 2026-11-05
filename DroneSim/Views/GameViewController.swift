@@ -38,6 +38,8 @@ final class GameViewController: UIViewController {
     private var altitudeHold = false
     /// 暂停。
     private var isPaused = false
+    /// 世界资源是否构建完成。
+    private var worldReady = false
 
     /// 场景参数。
     private let terrainSize: Float = 320
@@ -55,10 +57,10 @@ final class GameViewController: UIViewController {
             return
         }
         self.renderer = renderer
-        renderer.prepareWorld(terrainSize: terrainSize,
-                             terrainResolution: terrainResolution,
-                             seed: worldSeed)
         renderer.setSunDirection(simd_normalize(SIMD3<Float>(0.42, 0.72, 0.34)))
+        // 世界构建（3.7 万顶点 + 490 个实例）要几十毫秒，放后台线程做，
+        // 否则启动时会卡住主线程，界面迟迟不出现。
+        buildWorldInBackground(renderer: renderer)
 
         // 视图
         metalView.translatesAutoresizingMaskIntoConstraints = false
@@ -113,6 +115,22 @@ final class GameViewController: UIViewController {
 
         inputController.startMotion()
         hudView.showToast("点击「起飞」开始", duration: 2.5)
+    }
+
+    /// 在后台线程构建世界资源，完成后回到主线程。
+    private func buildWorldInBackground(renderer: MetalRenderer) {
+        let size = terrainSize
+        let resolution = terrainResolution
+        let seed = worldSeed
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            renderer.prepareWorld(terrainSize: size,
+                                  terrainResolution: resolution,
+                                  seed: seed)
+            DispatchQueue.main.async {
+                self?.worldReady = true
+                self?.hudView.showToast("场景就绪", duration: 1.2)
+            }
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -181,6 +199,8 @@ final class GameViewController: UIViewController {
 
     private func render(elapsed: Float) {
         guard let renderer else { return }
+        // 世界还没建好之前先不画，避免访问未初始化的缓冲。
+        guard worldReady else { return }
         guard let drawable = metalView.currentDrawable() else { return }
 
         let state = flight.state

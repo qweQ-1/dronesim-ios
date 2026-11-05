@@ -57,6 +57,12 @@ final class MetalRenderer {
     private(set) var drawCallCount: Int = 0
     private(set) var triangleCount: Int = 0
 
+    // MARK: 并发保护
+    //
+    // 世界资源在后台线程构建（prepareWorld），在主线程渲染（render），
+    // 用一把锁保证不会交叉访问。
+    private let worldLock = NSLock()
+
     // MARK: 帧内 uniform 存储
     // Metal 的 setVertexBuffer 需要一个稳定的地址，因此 uniform 存在这里而不是局部变量。
     private var terrainUniforms = TerrainUniforms(
@@ -193,18 +199,23 @@ final class MetalRenderer {
     // MARK: - 世界构建
 
     /// 一次性构建世界几何与实例数据。
+    ///
+    /// 可以在后台线程调用；与 render() 之间用 worldLock 互斥。
     func prepareWorld(terrainSize: Float, terrainResolution: Int, seed: UInt64) {
+        worldLock.lock()
+        defer { worldLock.unlock() }
+
         let field = TerrainField(size: terrainSize, seed: seed)
 
-        let terrain = GeometryBuilder.terrain(field: field, resolution: terrainResolution)
-        terrainVB = makeBuffer(vertices: terrain.vertices)
-        terrainIB = makeBuffer(indices: terrain.indices)
-        terrainIndexCount = terrain.indices.count
+        let terrainMesh = GeometryBuilder.terrain(field: field, resolution: terrainResolution)
+        terrainVB = makeBuffer(vertices: terrainMesh.vertices)
+        terrainIB = makeBuffer(indices: terrainMesh.indices)
+        terrainIndexCount = terrainMesh.indices.count
 
-        let drone = GeometryBuilder.droneMesh()
-        droneVB = makeBuffer(vertices: drone.vertices)
-        droneIB = makeBuffer(indices: drone.indices)
-        droneIndexCount = drone.indices.count
+        let droneMesh = GeometryBuilder.droneMesh()
+        droneVB = makeBuffer(vertices: droneMesh.vertices)
+        droneIB = makeBuffer(indices: droneMesh.indices)
+        droneIndexCount = droneMesh.indices.count
 
         buildProps(field: field, seed: seed)
     }
@@ -399,6 +410,16 @@ final class MetalRenderer {
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDesc) else { return }
 
+        // 读取世界资源（可能正在后台线程构建）。
+        // 只在拷贝引用时持锁，不把锁带到 GPU 提交阶段，避免拖慢帧率。
+        worldLock.lock()
+        let terrain = (vertexBuffer: terrainVB, indexBuffer: terrainIB, indexCount: terrainIndexCount)
+        let drone = (vertexBuffer: droneVB, indexBuffer: droneIB, indexCount: droneIndexCount)
+        let props = propMeshes
+        let propBuffers = propInstanceBuffers
+        let propCounts = propInstanceCounts
+        worldLock.unlock()
+
         // 深度状态（Xcode 26 里 MTLRenderPipelineDescriptor.depthStencilDescriptor 已移除，
         // 改成在 encoder 上单独设置）
         if let depthState = depthStencilState {
@@ -420,12 +441,12 @@ final class MetalRenderer {
                 encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
 
-            for i in propMeshes.indices {
-                let count = propInstanceCounts[i]
+            for i in props.indices {
+                let count = propCounts[i]
                 guard count > 0 else { continue }
-                let mesh = propMeshes[i]
+                let mesh = props[i]
                 encoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: Self.vertexBufferIndex)
-                encoder.setVertexBuffer(propInstanceBuffers[i], offset: 0, index: Self.instanceBufferIndex)
+                encoder.setVertexBuffer(propBuffers[i], offset: 0, index: Self.instanceBufferIndex)
                 encoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: mesh.indexCount,
                                               indexType: .uint16,
@@ -438,7 +459,7 @@ final class MetalRenderer {
         }
 
         // --- 无人机 ---
-        if let objectPipeline, let vb = droneVB, let ib = droneIB {
+        if let objectPipeline, let vb = drone.vertexBuffer, let ib = drone.indexBuffer {
             encoder.setRenderPipelineState(objectPipeline)
             objectUniforms = ObjectUniforms(
                 viewProjection: viewProjection,
@@ -452,16 +473,16 @@ final class MetalRenderer {
                 encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
             encoder.drawIndexedPrimitives(type: .triangle,
-                                          indexCount: droneIndexCount,
+                                          indexCount: drone.indexCount,
                                           indexType: .uint16,
                                           indexBuffer: ib,
                                           indexBufferOffset: 0)
             drawCallCount += 1
-            triangleCount += droneIndexCount / 3
+            triangleCount += drone.indexCount / 3
         }
 
         // --- 地形 ---
-        if let terrainPipeline, let vb = terrainVB, let ib = terrainIB {
+        if let terrainPipeline, let vb = terrain.vertexBuffer, let ib = terrain.indexBuffer {
             encoder.setRenderPipelineState(terrainPipeline)
             terrainUniforms = TerrainUniforms(
                 viewProjection: viewProjection,
@@ -476,12 +497,12 @@ final class MetalRenderer {
                 encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
             encoder.drawIndexedPrimitives(type: .triangle,
-                                          indexCount: terrainIndexCount,
+                                          indexCount: terrain.indexCount,
                                           indexType: .uint16,
                                           indexBuffer: ib,
                                           indexBufferOffset: 0)
             drawCallCount += 1
-            triangleCount += terrainIndexCount / 3
+            triangleCount += terrain.indexCount / 3
         }
 
         // --- 天空（最后画，深度写关闭）---
