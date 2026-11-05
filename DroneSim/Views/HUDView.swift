@@ -40,7 +40,10 @@ final class HUDView: UIView {
         altitudeCaption.text = "高度 m"
         altitudeCaption.font = .systemFont(ofSize: 12, weight: .medium)
         altitudeCaption.textColor = UIColor.white.withAlphaComponent(0.7)
-        altitudeCaption.accessibilityIdentifier = "hud.altitude.caption" 
+        // UI 测试要能找到 HUD。UILabel 默认不是 accessibility element，
+        // 必须显式打开，XCUITest 才能按 identifier 定位。
+        altitudeCaption.isAccessibilityElement = true
+        altitudeCaption.accessibilityIdentifier = "hud.altitude.caption"
 
         speedCaption.text = "速度 km/h"
         speedCaption.font = .systemFont(ofSize: 11, weight: .medium)
