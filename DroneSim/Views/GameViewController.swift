@@ -189,7 +189,7 @@ final class GameViewController: UIViewController {
                                   iz: state.attitude.z, r: state.attitude.w)
 
         let (camPos, camForward, camUp, fov) = cameraParameters(dronePos: dronePos, attitude: attitude)
-        let aspect = metalView.drawableSize.width / max(metalView.drawableSize.height, 1)
+        let aspect = Float(metalView.drawableSize.width / max(metalView.drawableSize.height, 1))
         renderer.setCamera(position: camPos, forward: camForward, up: camUp,
                            fovDegrees: fov, aspect: aspect)
         renderer.render(dronePosition: dronePos, droneAttitude: attitude,

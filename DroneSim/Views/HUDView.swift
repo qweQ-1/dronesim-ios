@@ -181,7 +181,7 @@ final class AttitudeIndicatorView: UIView {
         bezel.lineWidth = 1.5
         layer.addSublayer(bezel)
 
-        horizon.backgroundColor = UIColor.systemSky.cgColor
+        horizon.backgroundColor = UIColor.systemBlue.cgColor
         layer.addSublayer(horizon)
 
         pip.backgroundColor = UIColor.systemYellow.cgColor
@@ -212,11 +212,13 @@ final class AttitudeIndicatorView: UIView {
     /// 设置姿态。roll / pitch 单位为弧度。
     func setAttitude(roll: Float, pitch: Float) {
         let r = min(bounds.width, bounds.height) / 2
-        let pitchOffset = CGFloat(pitch) / (Float.pi / 3) * r * 0.75
-        // 绕中心旋转（横滚）+ 垂直平移（俯仰）
-        let rotation = CATransform3DMakeRotation(-CGFloat(roll), 0, 0, 1)
-        let scale = CATransform3DMakeScale(1.35, 1.35, 1)
-        horizon.setAffineTransform(CATransform3DConcat(rotation, scale))
+        let pitchOffset = CGFloat(pitch / (Float.pi / 3)) * r * 0.75
+        // 绕中心旋转（横滚）+ 缩放。
+        // CALayer 的 setAffineTransform 只接受 CGAffineTransform（2D），
+        // 不能用 CATransform3D。
+        let rotation = CGAffineTransform(rotationAngle: -CGFloat(roll))
+        let scale = CGAffineTransform(scaleX: 1.35, y: 1.35)
+        horizon.setAffineTransform(rotation.concatenating(scale))
         horizon.frame = bounds.offsetBy(dx: 0, dy: pitchOffset)
     }
 }

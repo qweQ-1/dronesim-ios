@@ -11,7 +11,7 @@ import simd
 /// - 地形/树木/建筑/塔柱各用**一次实例化 draw call**，整张地图只有 5 次 draw call；
 /// - 天空用一个全屏三角形在最后绘制，避免排序开销；
 /// - 顶点数据用 `storageModeShared`（iOS 统一内存），CPU 侧零拷贝上传；
-/// - 用 `CAMetalLayer` 三缓冲 + `displaySyncEnabled`，跑满屏幕刷新率。
+/// - 用 `CAMetalLayer` 三缓冲，iOS 上 Metal 层自动与屏幕刷新率同步。
 final class MetalRenderer {
 
     // MARK: 资源
@@ -35,7 +35,10 @@ final class MetalRenderer {
     private var propInstanceCounts: [Int] = []
 
     private var depthTexture: MTLTexture?
+    /// 物体用：写深度，less 比较。
     private var depthStencilState: MTLDepthStencilState?
+    /// 天空用：不写深度，lessEqual 比较。
+    private var skyDepthStencilState: MTLDepthStencilState?
 
     // MARK: 尺寸
     private(set) var drawableSize: CGSize = .zero
@@ -122,10 +125,6 @@ final class MetalRenderer {
         terrainDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: true)
         terrainDesc.colorAttachments[0].pixelFormat = pixelFormat
         terrainDesc.depthAttachmentPixelFormat = .depth32Float
-        let terrainDepth = MTLDepthStencilDescriptor()
-        terrainDepth.depthWriteEnabled = true
-        terrainDepth.depthCompare = .less
-        terrainDesc.depthStencilDescriptor = terrainDepth
         terrainPipeline = try? device.makeRenderPipelineState(descriptor: terrainDesc)
 
         let objectDesc = MTLRenderPipelineDescriptor()
@@ -134,10 +133,6 @@ final class MetalRenderer {
         objectDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: false)
         objectDesc.colorAttachments[0].pixelFormat = pixelFormat
         objectDesc.depthAttachmentPixelFormat = .depth32Float
-        let objectDepth = MTLDepthStencilDescriptor()
-        objectDepth.depthWriteEnabled = true
-        objectDepth.depthCompare = .less
-        objectDesc.depthStencilDescriptor = objectDepth
         objectPipeline = try? device.makeRenderPipelineState(descriptor: objectDesc)
 
         let instDesc = MTLRenderPipelineDescriptor()
@@ -146,10 +141,6 @@ final class MetalRenderer {
         instDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: false)
         instDesc.colorAttachments[0].pixelFormat = pixelFormat
         instDesc.depthAttachmentPixelFormat = .depth32Float
-        let instDepth = MTLDepthStencilDescriptor()
-        instDepth.depthWriteEnabled = true
-        instDepth.depthCompare = .less
-        instDesc.depthStencilDescriptor = instDepth
         instancedPipeline = try? device.makeRenderPipelineState(descriptor: instDesc)
 
         let skyDesc = MTLRenderPipelineDescriptor()
@@ -158,16 +149,11 @@ final class MetalRenderer {
         skyDesc.vertexDescriptor = nil
         skyDesc.colorAttachments[0].pixelFormat = pixelFormat
         skyDesc.depthAttachmentPixelFormat = .depth32Float
-        let skyDepth = MTLDepthStencilDescriptor()
-        skyDepth.depthWriteEnabled = false
-        skyDepth.depthCompare = .lessEqual
-        skyDesc.depthStencilDescriptor = skyDepth
         skyPipeline = try? device.makeRenderPipelineState(descriptor: skyDesc)
     }
 
     /// 顶点描述符。属性顺序必须与 `MeshVertex` 字段顺序一致：
     /// position(0) / normal(1) / color(2) / uv(3)
-    /// 顶点描述符。
     ///
     /// ⚠️ 缓冲槽位约定（很重要）：
     /// - buffer 0 = uniform（着色器常量）
@@ -342,8 +328,15 @@ final class MetalRenderer {
         desc.storageMode = .private
         depthTexture = device.makeTexture(descriptor: desc)
 
-        depthStencilState = device.makeDepthStencilState(
-            descriptor: MTLDepthStencilDescriptor())
+        let objectState = MTLDepthStencilDescriptor()
+        objectState.isDepthWriteEnabled = true
+        objectState.depthCompareFunction = .less
+        depthStencilState = device.makeDepthStencilState(descriptor: objectState)
+
+        let skyState = MTLDepthStencilDescriptor()
+        skyState.isDepthWriteEnabled = false
+        skyState.depthCompareFunction = .lessEqual
+        skyDepthStencilState = device.makeDepthStencilState(descriptor: skyState)
     }
 
     // MARK: - 相机
@@ -364,7 +357,7 @@ final class MetalRenderer {
         ))
 
         let aspectRatio = aspect > 0 ? aspect : 1
-        let proj = simd_float4x4.perspective(
+        let proj = MetalRenderer.perspectiveMatrix(
             fovY: fovDegrees * .pi / 180,
             aspect: aspectRatio,
             near: near,
@@ -383,7 +376,7 @@ final class MetalRenderer {
 
     /// 渲染一帧。
     func render(dronePosition: SIMD3<Float>, droneAttitude: simd_quatf,
-                time: Float, in view: MTLDrawable, depthAttachment: MTLTexture?) {
+                time: Float, in view: CAMetalDrawable, depthAttachment: MTLTexture?) {
         drawCallCount = 0
         triangleCount = 0
 
@@ -405,6 +398,12 @@ final class MetalRenderer {
 
         guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDesc) else { return }
 
+        // 深度状态（Xcode 26 里 MTLRenderPipelineDescriptor.depthStencilDescriptor 已移除，
+        // 改成在 encoder 上单独设置）
+        if let depthState = depthStencilState {
+            encoder.setDepthStencilState(depthState)
+        }
+
         // --- 场景物体（先画，写深度）---
         if let instancedPipeline {
             encoder.setRenderPipelineState(instancedPipeline)
@@ -416,8 +415,8 @@ final class MetalRenderer {
                 count: 0
             )
             withUnsafeBytes(of: &instancedUniforms) { buf in
-                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 0)
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setVertexBytes(buf.baseAddress!, length: buf.count, index: 0)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
 
             for i in propMeshes.indices {
@@ -426,12 +425,11 @@ final class MetalRenderer {
                 let mesh = propMeshes[i]
                 encoder.setVertexBuffer(mesh.vertexBuffer, offset: 0, index: Self.vertexBufferIndex)
                 encoder.setVertexBuffer(propInstanceBuffers[i], offset: 0, index: Self.instanceBufferIndex)
-                encoder.setIndexBuffer(mesh.indexBuffer, offset: 0, indexForVertex: 0)
                 encoder.drawIndexedPrimitives(type: .triangle,
                                               indexCount: mesh.indexCount,
                                               indexType: .uint16,
-                                              indexStart: 0,
-                                              baseVertex: 0,
+                                              indexBuffer: mesh.indexBuffer,
+                                              indexBufferOffset: 0,
                                               instanceCount: count)
                 drawCallCount += 1
                 triangleCount += (mesh.indexCount / 3) * count
@@ -449,15 +447,14 @@ final class MetalRenderer {
             )
             encoder.setVertexBuffer(vb, offset: 0, index: Self.vertexBufferIndex)
             withUnsafeBytes(of: &objectUniforms) { buf in
-                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: Self.uniformBufferIndex)
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setVertexBytes(buf.baseAddress!, length: buf.count, index: Self.uniformBufferIndex)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
-            encoder.setIndexBuffer(ib, offset: 0, indexForVertex: 0)
             encoder.drawIndexedPrimitives(type: .triangle,
                                           indexCount: droneIndexCount,
                                           indexType: .uint16,
-                                          indexStart: 0,
-                                          baseVertex: 0)
+                                          indexBuffer: ib,
+                                          indexBufferOffset: 0)
             drawCallCount += 1
             triangleCount += droneIndexCount / 3
         }
@@ -474,15 +471,14 @@ final class MetalRenderer {
             )
             encoder.setVertexBuffer(vb, offset: 0, index: Self.vertexBufferIndex)
             withUnsafeBytes(of: &terrainUniforms) { buf in
-                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: Self.uniformBufferIndex)
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setVertexBytes(buf.baseAddress!, length: buf.count, index: Self.uniformBufferIndex)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
-            encoder.setIndexBuffer(ib, offset: 0, indexForVertex: 0)
             encoder.drawIndexedPrimitives(type: .triangle,
                                           indexCount: terrainIndexCount,
                                           indexType: .uint16,
-                                          indexStart: 0,
-                                          baseVertex: 0)
+                                          indexBuffer: ib,
+                                          indexBufferOffset: 0)
             drawCallCount += 1
             triangleCount += terrainIndexCount / 3
         }
@@ -490,25 +486,30 @@ final class MetalRenderer {
         // --- 天空（最后画，深度写关闭）---
         if let skyPipeline {
             encoder.setRenderPipelineState(skyPipeline)
+            if let skyState = skyDepthStencilState {
+                encoder.setDepthStencilState(skyState)
+            }
             skyInvViewProjection = invViewProjection
             skyCameraPosition = cameraPosition
             skyTime = time
             // 用 withUnsafeBytes 显式传指针：
             // setVertexBuffer 有多个重载，直接传 &var 会被 Swift 解析成 MTLBuffer? 版本而报错。
+            // 用 setVertexBytes / setFragmentBytes 按字节数传：
+            // setVertexBuffer 的指针重载在 Xcode 26 里会被解析到 MTLBuffer 版本而编译失败。
             withUnsafeBytes(of: &skyInvViewProjection) { buf in
-                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setVertexBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
             withUnsafeBytes(of: &skyCameraPosition) { buf in
-                encoder.setVertexBuffer(buf.baseAddress, offset: 0, index: 1)
+                encoder.setVertexBytes(buf.baseAddress!, length: buf.count, index: 1)
             }
             withUnsafeBytes(of: &sunDirection) { buf in
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 0)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 0)
             }
             withUnsafeBytes(of: &skyCameraPosition) { buf in
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 1)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 1)
             }
             withUnsafeBytes(of: &skyTime) { buf in
-                encoder.setFragmentBuffer(buf.baseAddress, offset: 0, index: 2)
+                encoder.setFragmentBytes(buf.baseAddress!, length: buf.count, index: 2)
             }
             encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
             drawCallCount += 1
@@ -520,6 +521,20 @@ final class MetalRenderer {
     }
 
     // MARK: - 矩阵
+
+    /// 右手系透视投影矩阵（列主序，Metal 的 NDC 深度范围是 [0, 1]）。
+    static func perspectiveMatrix(fovY: Float, aspect: Float, near: Float, far: Float) -> simd_float4x4 {
+        let y = 1 / tan(fovY * 0.5)
+        let x = y / aspect
+        let z = far / (near - far)
+        let w = (near * far) / (near - far)
+        return simd_float4x4(columns: (
+            SIMD4<Float>(x, 0, 0, 0),
+            SIMD4<Float>(0, y, 0, 0),
+            SIMD4<Float>(0, 0, z, -1),
+            SIMD4<Float>(0, 0, w, 0)
+        ))
+    }
 
     private func makeModelMatrix(position: SIMD3<Float>, attitude: simd_quatf) -> simd_float4x4 {
         let r = attitude.act(SIMD3<Float>(1, 0, 0))
