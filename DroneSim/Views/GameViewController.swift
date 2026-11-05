@@ -171,6 +171,17 @@ final class GameViewController: UIViewController {
         displayLink = nil
     }
 
+    /// 回到前台：恢复渲染循环。
+    func resumeRendering() {
+        guard displayLink == nil else { return }
+        startDisplayLink()
+    }
+
+    /// 进入后台：停掉渲染循环，省电。
+    func pauseRendering() {
+        stopDisplayLink()
+    }
+
     @objc private func onFrame() {
         let now = CACurrentMediaTime()
         let elapsed = now - startTime
