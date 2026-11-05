@@ -179,9 +179,15 @@ public struct FlightDynamics: Sendable {
         torqueBody -= state.angularVelocity * self.angularDamping
 
         // --- 线运动（世界系）---
+        //
+        // 注意量纲：thrustWorld 是力（牛顿），要除以质量才是加速度；
+        // gravity 已经是加速度（m/s²），不能再除以质量。
+        // 之前把两者一起除以质量，等于把重力放大成 15.09 m/s²，
+        // 结果推力正好等于重力时无人机仍在加速下坠。
         let thrustWorld = state.attitude.toWorld(thrustBody)
-        let gravity = Vec3(0, -environment.gravity, 0)
-        let acceleration = (thrustWorld + gravity) / spec.mass
+        let thrustAcceleration = thrustWorld / spec.mass
+        let gravityAcceleration = Vec3(0, -environment.gravity, 0)
+        let acceleration = thrustAcceleration + gravityAcceleration
         state.velocity += acceleration * dt
         state.position += state.velocity * dt
 
