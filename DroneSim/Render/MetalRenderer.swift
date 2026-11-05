@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import QuartzCore   // CAMetalDrawable
 import simd
 
 // MARK: - 渲染器
