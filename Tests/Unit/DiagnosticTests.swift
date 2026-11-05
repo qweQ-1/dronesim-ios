@@ -1,39 +1,41 @@
 import XCTest
 @testable import DroneSim
 
-/// 诊断测试：把悬停时的关键数值打印出来，便于定位物理标定问题。
-/// 这些断言故意宽松，作用是把数值暴露在 CI 日志里。
+/// 诊断测试：把悬停时的关键数值放进断言失败消息里。
+///
+/// XCTest 的 print 会被 CI 的日志过滤器吃掉，所以只能让断言故意失败，
+/// 数值出现在 ##[error] 行里才看得见。定位到问题后删掉这个文件。
 final class DiagnosticTests: XCTestCase {
 
     func testHoverDiagnostics() {
         var dynamics = FlightDynamics()
         let spec = dynamics.spec
 
-        let hover = spec.hoverRotorSpeed
-        let idle = spec.idleRotorSpeed
-        var state = FlightState(position: Vec3(0, 100, 0))
-        state.mode = .stabilized
+        var probe = FlightState(position: Vec3(0, 100, 0))
+        probe.mode = .stabilized
         var input = ControlInput(throttle: 0.42)
         input.altitudeMode = .manual
 
-        let commanded = dynamics.commandedRotorSpeeds(input: input, state: state)
+        let commanded = dynamics.commandedRotorSpeeds(input: input, state: probe)
         let thrustPer = dynamics.thrust(forRotorSpeed: commanded[0])
-        let total = thrustPer * 4
+        let totalThrust = thrustPer * 4
         let weight = spec.mass * 9.81
 
-        print("DIAG idle=\(idle) hover=\(hover) maxRotorSpeed=\(spec.maxRotorSpeed)")
-        print("DIAG commanded=\(commanded)")
-        print("DIAG thrustPer=\(thrustPer) total=\(total) weight=\(weight)")
-        print("DIAG thrustCoefficient=\(spec.thrustCoefficient) motorMax=\(dynamics.motor.maxThrust)")
-
-        // 跑一会儿看实际竖直速度
-        var state2 = FlightState(position: Vec3(0, 100, 0))
-        state2.mode = .stabilized
+        var state = FlightState(position: Vec3(0, 100, 0))
+        state.mode = .stabilized
         for _ in 0..<240 {
-            dynamics.step(state: &state2, input: input, environment: .calm,
+            dynamics.step(state: &state, input: input, environment: .calm,
                           dt: FlightDynamics.fixedTimeStep)
         }
-        print("DIAG after 1s: vy=\(state2.velocity.y) y=\(state2.position.y) motors=\(state2.motorSpeeds)")
-        XCTAssertTrue(true)
+
+        let report = """
+        DIAG | 怠速=\(spec.idleRotorSpeed) 悬停=\(spec.hoverRotorSpeed) 满速=\(spec.maxRotorSpeed)
+        DIAG | 指令转速=\(commanded)
+        DIAG | 单旋翼推力=\(thrustPer) 总推力=\(totalThrust) 重力=\(weight)
+        DIAG | 推力系数=\(spec.thrustCoefficient) 电机上限=\(dynamics.motor.maxThrust)
+        DIAG | 1秒后 vy=\(state.velocity.y) y=\(state.position.y) 电机=\(state.motorSpeeds)
+        DIAG | 姿态 up.y=\(state.attitude.up.y) mode=\(state.mode)
+        """
+        XCTFail(report)
     }
 }
