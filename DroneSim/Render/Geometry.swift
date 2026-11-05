@@ -227,6 +227,26 @@ enum GeometryBuilder {
         return SimpleMesh(vertices: vertices, indices: indices)
     }
 
+    // MARK: 起飞平台
+
+    /// 起飞平台：扁圆盘 + 中心标记，给玩家一个明确的地面参照。
+    static func padMesh() -> SimpleMesh {
+        var vertices: [MeshVertex] = []
+        var indices: [UInt16] = []
+
+        // 底盘
+        appendCylinder(&vertices, &indices, radius: 2.6, height: 0.12, segments: 24,
+                       color: SIMD4<Float>(0.20, 0.22, 0.26, 1), baseY: 0.0)
+        // 内圈（亮色，便于判断朝向）
+        appendCylinder(&vertices, &indices, radius: 1.9, height: 0.14, segments: 24,
+                       color: SIMD4<Float>(0.30, 0.34, 0.40, 1), baseY: 0.0)
+        // 中心标记
+        appendCylinder(&vertices, &indices, radius: 0.9, height: 0.16, segments: 20,
+                       color: SIMD4<Float>(0.85, 0.62, 0.16, 1), baseY: 0.0)
+
+        return SimpleMesh(vertices: vertices, indices: indices)
+    }
+
     // MARK: 柱子
 
     /// 圆柱体（塔、桩）。

@@ -43,7 +43,10 @@ final class GameViewController: UIViewController {
 
     /// 场景参数。
     private let terrainSize: Float = 320
-    private let terrainResolution = 192
+    /// 地形网格分辨率。
+    /// 顶点数是 (resolution+1)²，必须 < 65536（索引用 UInt16）。
+    /// 224 → 225² = 50625 ✓
+    private let terrainResolution = 224
     private let worldSeed: UInt64 = 20261104
 
     // MARK: 生命周期
@@ -212,8 +215,8 @@ final class GameViewController: UIViewController {
 
     private func render(elapsed: Float) {
         guard let renderer else { return }
-        // 世界还没建好之前先不画，避免访问未初始化的缓冲。
-        guard worldReady else { return }
+        // 世界资源还没建好时也能出画面：渲染器里地形/物体的 buffer 是可选的，
+        // 没建好就只画天空，不会黑屏。
         guard let drawable = metalView.currentDrawable() else { return }
 
         let state = flight.state

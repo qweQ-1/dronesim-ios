@@ -202,20 +202,25 @@ final class MetalRenderer {
     /// Metal 里 vertex buffer 和 vertex descriptor 的 bufferIndex 共用同一批槽位，
     /// 如果把 uniform 和顶点数据都放进 index 0，后者会覆盖前者，渲染结果会是乱码。
     private static func makeVertexDescriptor(includeUV: Bool) -> MTLVertexDescriptor {
+        // ⚠️ offset 是「该属性在顶点结构体里的起始字节」。
+        // MeshVertex 的布局是 position@0 / normal@16 / color@32 / uv@48，
+        // 之前这里把 offset 写成了下一个属性的位置（16/32/48/48），
+        // 结果 position 读到 normal、normal 读到 color、color 读到越界数据，
+        // 所有几何体都是乱的。
         let desc = MTLVertexDescriptor()
         desc.attributes[0].format = .float3
-        desc.attributes[0].offset = MemoryLayout<SIMD3<Float>>.stride
+        desc.attributes[0].offset = 0
         desc.attributes[0].bufferIndex = Self.vertexBufferIndex
         desc.attributes[1].format = .float3
-        desc.attributes[1].offset = MemoryLayout<SIMD3<Float>>.stride * 2
+        desc.attributes[1].offset = MemoryLayout<SIMD3<Float>>.stride          // 16
         desc.attributes[1].bufferIndex = Self.vertexBufferIndex
         desc.attributes[2].format = .float4
-        desc.attributes[2].offset = MemoryLayout<SIMD3<Float>>.stride * 2 + MemoryLayout<SIMD4<Float>>.stride
+        desc.attributes[2].offset = MemoryLayout<SIMD3<Float>>.stride * 2      // 32
         desc.attributes[2].bufferIndex = Self.vertexBufferIndex
         if includeUV {
             desc.attributes[3].format = .float2
             desc.attributes[3].offset = MemoryLayout<SIMD3<Float>>.stride * 2
-                + MemoryLayout<SIMD4<Float>>.stride
+                + MemoryLayout<SIMD4<Float>>.stride                             // 48
             desc.attributes[3].bufferIndex = Self.vertexBufferIndex
         }
         desc.layouts[Self.vertexBufferIndex].stride = MemoryLayout<MeshVertex>.stride
@@ -345,6 +350,17 @@ final class MetalRenderer {
         }
         propInstanceBuffers.append(makeInstanceBuffer(pillarInstances))
         propInstanceCounts.append(pillarInstances.count)
+
+        // --- 起飞平台（原点）---
+        let pad = GeometryBuilder.padMesh()
+        propMeshes.append(PropMesh(vertexBuffer: makeBuffer(vertices: pad.vertices)!,
+                                    indexBuffer: makeBuffer(indices: pad.indices)!,
+                                    indexCount: pad.indices.count))
+        var padInstance = InstanceData(model: matrix_identity_float4x4,
+                                       tint: SIMD4<Float>(1, 1, 1, 1))
+        padInstance.model.columns.3 = SIMD4<Float>(0, 0, 0, 1)
+        propInstanceBuffers.append(makeInstanceBuffer([padInstance]))
+        propInstanceCounts.append(1)
     }
 
     private func makeInstanceBuffer(_ instances: [InstanceData]) -> MTLBuffer {

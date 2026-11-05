@@ -4,7 +4,13 @@ import CoreMotion
 
 // MARK: - 虚拟摇杆
 
-/// 虚拟摇杆：既是输入源，也是可见控件。
+/// 虚拟摇杆：底座常驻可见，触摸时拇指跟随，松手回中。
+///
+/// 设计要点（第一版做成「按下才画」，玩家看不到摇杆在哪，等于没有反馈）：
+/// - 底座圆环始终显示，位置固定在视图中心；
+/// - 触摸落在视图内任意位置都能操作，拇指按偏移量移动；
+/// - 拖动超出半径时拇指停在边缘，明确表示已到极限；
+/// - 拖动时底座高亮，松手恢复，给一个清楚的「已接管」反馈。
 final class VirtualJoystick: UIView {
 
     /// 归一化输出 (-1...1)，x 向右为正，y 向上为正。
@@ -12,17 +18,23 @@ final class VirtualJoystick: UIView {
     /// 是否正在被拖动。
     private(set) var isActive = false
 
-    /// 摇杆半径（像素）。
-    var radius: CGFloat = 110
+    /// 摇杆可拖动的半径（像素）。
+    var radius: CGFloat = 78
     /// 死区（0...1）。
-    var deadzone: CGFloat = 0.10
+    var deadzone: CGFloat = 0.12
+    /// 是否是左半屏的摇杆。
+    var isLeftStick = true
 
-    /// 归属的触摸对象。
+    /// 拖动开始/结束时回调（用于震动反馈）。
+    var onEngage: (() -> Void)?
+    var onRelease: (() -> Void)?
+
     private weak var trackedTouch: UITouch?
-    /// 摇杆原点（该 view 坐标系）。
-    private var origin: CGPoint = .zero
+    private var center: CGPoint = .zero
 
-    private let baseCircle = CAShapeLayer()
+    private let baseFill = CAShapeLayer()
+    private let baseRing = CAShapeLayer()
+    private let crosshair = CAShapeLayer()
     private let knob = CAShapeLayer()
 
     override init(frame: CGRect) {
@@ -37,121 +49,131 @@ final class VirtualJoystick: UIView {
 
     private func setup() {
         backgroundColor = .clear
-        // 摇杆自己接收触摸：区域是屏幕下半部分的固定矩形，
-        // 命中测试按「离摇杆中心最近的半边」分配，避免两个摇杆互相抢。
         isUserInteractionEnabled = true
+        isMultipleTouchEnabled = false
 
-        baseCircle.fillColor = UIColor.black.withAlphaComponent(0.22).cgColor
-        baseCircle.strokeColor = UIColor.white.withAlphaComponent(0.35).cgColor
-        baseCircle.lineWidth = 1.5
-        baseCircle.opacity = 0
-        layer.addSublayer(baseCircle)
+        // 底座：半透明填充 + 亮边，保证在明亮天空和暗色地面上都看得清
+        baseFill.fillColor = UIColor.black.withAlphaComponent(0.20).cgColor
+        baseRing.fillColor = nil
+        baseRing.strokeColor = UIColor.white.withAlphaComponent(0.55).cgColor
+        baseRing.lineWidth = 2
 
-        knob.fillColor = UIColor.white.withAlphaComponent(0.45).cgColor
-        knob.strokeColor = UIColor.white.withAlphaComponent(0.8).cgColor
-        knob.lineWidth = 1.5
-        knob.opacity = 0
+        crosshair.fillColor = nil
+        crosshair.strokeColor = UIColor.white.withAlphaComponent(0.22).cgColor
+        crosshair.lineWidth = 1
+
+        knob.fillColor = UIColor.white.withAlphaComponent(0.44).cgColor
+        knob.strokeColor = UIColor.white.withAlphaComponent(0.95).cgColor
+        knob.lineWidth = 2
+
+        layer.addSublayer(baseFill)
+        layer.addSublayer(crosshair)
+        layer.addSublayer(baseRing)
         layer.addSublayer(knob)
     }
 
-    /// 触摸开始。`point` 是该 view 坐标系下的位置。
-    func begin(touch: UITouch, at point: CGPoint) {
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        center = CGPoint(x: bounds.midX, y: bounds.midY)
+        // 底座直径不超过视图短边的 80%，避免贴边或溢出
+        radius = min(radius, min(bounds.width, bounds.height) * 0.4)
+        redrawBase(highlighted: isActive)
+        redrawKnob()
+    }
+
+    // MARK: 绘制
+
+    private func redrawBase(highlighted: Bool) {
+        baseFill.path = UIBezierPath(arcCenter: center, radius: radius,
+                                     startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
+        baseRing.path = baseFill.path
+        baseRing.strokeColor = UIColor.white
+            .withAlphaComponent(highlighted ? 0.95 : 0.55).cgColor
+        baseFill.fillColor = UIColor.black
+            .withAlphaComponent(highlighted ? 0.32 : 0.20).cgColor
+
+        // 十字准线，帮助判断回中
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: center.x - radius, y: center.y))
+        path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
+        path.move(to: CGPoint(x: center.x, y: center.y - radius))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius))
+        crosshair.path = path.cgPath
+    }
+
+    private func redrawKnob() {
+        let knobRadius = radius * 0.36
+        let knobCenter = CGPoint(
+            x: center.x + value.x * (radius - knobRadius),
+            y: center.y - value.y * (radius - knobRadius)
+        )
+        knob.path = UIBezierPath(arcCenter: knobCenter, radius: knobRadius,
+                                 startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
+    }
+
+    // MARK: 触摸
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        guard let touch = touches.first, trackedTouch == nil else { return }
         trackedTouch = touch
         isActive = true
-        origin = point
-        value = .zero
-
-        baseCircle.opacity = 1
-        knob.opacity = 1
-        redraw(center: point, knobCenter: point)
+        redrawBase(highlighted: true)
+        updateValue(for: touch)
+        onEngage?()
     }
 
-    /// 触摸移动。
-    func move(to point: CGPoint) {
-        guard isActive else { return }
-        let dx = point.x - origin.x
-        let dy = point.y - origin.y
-        let distance = sqrt(dx * dx + dy * dy)
-        guard distance > 0.5 else {
-            value = .zero
-            redraw(center: origin, knobCenter: origin)
-            return
-        }
-        let normalized = min(distance / radius, 1)
-        let magnitude = normalized <= deadzone ? 0 : (normalized - deadzone) / (1 - deadzone)
-        value = CGPoint(x: (dx / distance) * magnitude, y: (-dy / distance) * magnitude)
-
-        // 拇指方向与实际位移一致（限制在半径内）
-        let knobCenter = CGPoint(
-            x: origin.x + (dx / distance) * min(distance, radius),
-            y: origin.y + (dy / distance) * min(distance, radius)
-        )
-        redraw(center: origin, knobCenter: knobCenter)
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesMoved(touches, with: event)
+        guard let touch = touches.first,
+              let tracked = trackedTouch,
+              touch === tracked else { return }
+        updateValue(for: touch)
     }
 
-    /// 触摸结束。
-    func end() {
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesEnded(touches, with: event)
+        releaseIfTracked(touches)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        releaseIfTracked(touches)
+    }
+
+    private func releaseIfTracked(_ touches: Set<UITouch>) {
+        guard let tracked = trackedTouch,
+              touches.contains(where: { $0 === tracked }) else { return }
         trackedTouch = nil
         isActive = false
         value = .zero
-        baseCircle.opacity = 0
-        knob.opacity = 0
+        redrawBase(highlighted: false)
+        redrawKnob()
+        onRelease?()
     }
 
-    private func redraw(center: CGPoint, knobCenter: CGPoint) {
-        // 视图可能比屏幕小，摇杆超出部分裁掉
-        baseCircle.path = UIBezierPath(arcCenter: center, radius: radius,
-                                       startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
-        knob.path = UIBezierPath(arcCenter: knobCenter, radius: radius * 0.34,
-                                 startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
+    private func updateValue(for touch: UITouch) {
+        let p = touch.location(in: self)
+        let dx = p.x - center.x
+        let dy = p.y - center.y
+        let distance = (dx * dx + dy * dy).squareRoot()
+
+        guard distance > 1 else {
+            value = .zero
+            redrawKnob()
+            return
+        }
+
+        let normalized = min(distance / radius, 1)
+        let magnitude = normalized <= deadzone ? 0 : (normalized - deadzone) / (1 - deadzone)
+        value = CGPoint(x: (dx / distance) * magnitude, y: (-dy / distance) * magnitude)
+        redrawKnob()
     }
 
     /// 取某个轴的输出。
     /// - Parameter index: 0 = 水平，1 = 垂直（向上为正）
     func axis(_ index: Int) -> Float {
         index == 0 ? Float(value.x) : Float(value.y)
-    }
-
-    // MARK: 触摸
-
-    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        // 只有按下点在「离本摇杆中心更近」的那半屏才响应。
-        // 还要排除屏幕右上角的按钮区，否则摇杆会盖住按钮（触摸和无障碍树都会被挡）。
-        guard let window else { return false }
-        let screenPoint = convert(point, to: window)
-        let midX = window.bounds.midX
-        let isMine = screenPoint.x < midX ? isLeftStick : !isLeftStick
-        guard isMine else { return false }
-        // 按钮区：右侧上方
-        if !isLeftStick && screenPoint.x > window.bounds.width - 110 && screenPoint.y < 560 {
-            return false
-        }
-        return true
-    }
-
-    /// 是否是左半屏的摇杆（左半屏归属左摇杆）。
-    var isLeftStick: Bool = true
-
-    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesBegan(touches, with: event)
-        guard let touch = touches.first else { return }
-        begin(touch: touch, at: touch.location(in: self))
-    }
-
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesMoved(touches, with: event)
-        guard let touch = touches.first else { return }
-        move(to: touch.location(in: self))
-    }
-
-    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesEnded(touches, with: event)
-        end()
-    }
-
-    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        super.touchesCancelled(touches, with: event)
-        end()
     }
 }
 

@@ -38,29 +38,88 @@ vertex TerrainVertexOut terrainVertex(TerrainVertexIn in [[stage_in]],
     return out;
 }
 
+// 值噪声（二维），用于地表细节
+static float hash2(float2 p) {
+    float3 p3 = fract(float3(p.xyx) * 0.1031);
+    p3 += dot(p3, p3.yzx + 33.33);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+static float valueNoise2(float2 p) {
+    float2 i = floor(p);
+    float2 f = fract(p);
+    float2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash2(i);
+    float b = hash2(i + float2(1.0, 0.0));
+    float c = hash2(i + float2(0.0, 1.0));
+    float d = hash2(i + float2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+static float fbm2(float2 p) {
+    float v = 0.0;
+    float amp = 0.5;
+    for (int i = 0; i < 4; i++) {
+        v += valueNoise2(p) * amp;
+        p *= 2.07;
+        amp *= 0.5;
+    }
+    return v;
+}
+
 fragment float4 terrainFragment(TerrainVertexOut in [[stage_in]],
                                 constant TerrainUniforms& u [[buffer(0)]]) {
     float3 n = normalize(in.normal);
     float3 l = normalize(u.lightDir.xyz);
+    float3 v = normalize(u.cameraPos.xyz - in.worldPos);
     float ndotl = max(dot(n, l), 0.0);
 
-    // 半兰伯特环境光：背光面不至于死黑
-    float hemi = 0.5 + 0.5 * n.y;
-    float3 ambient = float3(0.30, 0.35, 0.42) * (0.60 + 0.40 * hemi);
-    float3 diffuse = float3(1.0, 0.96, 0.88) * ndotl * 0.85;
+    // 细节法线扰动：让大片同色地面有质感
+    float2 wp = in.worldPos.xz;
+    float d1 = fbm2(wp * 0.35);
+    float d2 = fbm2(wp * 1.7 + 11.0);
+    float3 detailN = normalize(n + float3((d1 - 0.5) * 0.35, 0.0, (d2 - 0.5) * 0.35));
+    float detailLight = max(dot(detailN, l), 0.0);
 
-    // 地表网格线：给速度一个视觉参照
+    // 高度 + 坡度的配色
+    float slope = 1.0 - n.y;
+    float3 c = in.color.rgb;
+    // 低处偏水润的绿，中段偏黄绿，高处偏灰白（和顶点色叠加）
+    c *= 0.85 + 0.30 * d1;
+    c = mix(c, c * float3(1.06, 1.02, 0.92), d2);
+
+    // 半兰伯特环境光 + 天空散射
+    float hemi = 0.5 + 0.5 * n.y;
+    float3 skyAmbient = mix(float3(0.22, 0.26, 0.20), float3(0.42, 0.52, 0.68), hemi);
+    float3 ambient = skyAmbient * 0.75;
+
+    // 太阳：主光 + 一点镜面（湿滑/岩石反光）
+    float3 sunColor = float3(1.05, 0.98, 0.86);
+    float3 diffuse = sunColor * ndotl * 0.95;
+    diffuse *= 0.82 + 0.18 * detailLight;
+
+    float3 h = normalize(l + v);
+    float spec = pow(max(dot(detailN, h), 0.0), 24.0) * 0.10 * (1.0 - slope);
+    spec += pow(max(dot(detailN, h), 0.0), 90.0) * 0.18 * smoothstep(0.3, 0.7, slope);
+
+    float3 color = c * (ambient + diffuse) + float3(spec);
+
+    // 斜坡上露出岩石色
+    float rockMix = smoothstep(0.32, 0.62, slope);
+    color = mix(color, float3(0.36, 0.34, 0.32) * (ambient + diffuse * 0.9), rockMix * 0.75);
+
+    // 地表网格线：给速度一个视觉参照，远处淡出避免摩尔纹
+    float dist = distance(in.worldPos, u.cameraPos.xyz);
+    float gridFade = 1.0 - smoothstep(40.0, 130.0, dist);
     float2 g = abs(fract(in.uv) - 0.5);
     float line = 1.0 - smoothstep(0.455, 0.5, max(g.x, g.y));
-    float3 gridColor = float3(0.28, 0.52, 0.70) * line * 0.22;
+    color += float3(0.30, 0.55, 0.72) * line * 0.20 * gridFade;
 
-    float3 color = in.color.rgb * (ambient + diffuse) + gridColor;
-
-    // 大气透视：远处淡入天空色
-    float dist = distance(in.worldPos, u.cameraPos.xyz);
+    // 大气透视：远处淡入天空色，并轻微偏蓝（瑞利散射的观感）
     float fog = 1.0 - exp(-dist * u.params.x);
-    float3 fogColor = float3(0.62, 0.72, 0.82);
-    color = mix(color, fogColor, clamp(fog, 0.0, 0.92));
+    float3 fogColor = mix(float3(0.66, 0.75, 0.86), float3(0.72, 0.82, 0.92),
+                          smoothstep(0.0, 400.0, dist));
+    color = mix(color, fogColor, clamp(fog, 0.0, 0.94));
 
     return float4(color, 1.0);
 }
@@ -184,27 +243,39 @@ fragment float4 skyFragment(SkyVertexOut in [[stage_in]],
                             constant float3& cameraPos [[buffer(1)]],
                             constant float& time [[buffer(2)]]) {
     float3 dir = normalize(in.direction);
+    float3 sd = normalize(sunDir);
     float h = clamp(dir.y, -1.0, 1.0);
+    float sunDot = max(dot(dir, sd), 0.0);
 
-    float3 zenith  = float3(0.16, 0.35, 0.66);
-    float3 horizon = float3(0.72, 0.82, 0.90);
-    float3 ground  = float3(0.42, 0.44, 0.42);
-
-    float t = smoothstep(-0.05, 0.55, h);
+    // 大气散射的近似：地平线暖白、天顶深蓝，太阳附近再暖一档
+    float3 zenith  = float3(0.10, 0.28, 0.62);
+    float3 horizon = float3(0.80, 0.87, 0.94);
+    float t = pow(smoothstep(-0.10, 0.75, h), 0.62);
     float3 sky = mix(horizon, zenith, t);
-    sky = mix(ground, sky, smoothstep(-0.25, 0.0, h));
 
-    // 太阳与光晕
-    float sunDot = max(dot(dir, normalize(sunDir)), 0.0);
-    float disc = smoothstep(0.9985, 0.9995, sunDot);
-    float glow = pow(sunDot, 220.0) * 0.85 + pow(sunDot, 12.0) * 0.16;
-    sky += float3(1.0, 0.94, 0.80) * glow;
-    sky = mix(sky, float3(1.0, 0.98, 0.90), disc);
+    // 地平线以下（远处地面/雾）
+    float3 below = float3(0.55, 0.58, 0.58);
+    sky = mix(below, sky, smoothstep(-0.18, 0.02, h));
 
-    // 廉价程序化云带
-    float band = sin(dir.x * 3.0 + time * 0.02) * cos(dir.z * 2.6 - time * 0.015);
-    float cloud = smoothstep(0.25, 0.85, band) * smoothstep(0.05, 0.45, h) * 0.10;
-    sky = mix(sky, float3(1.0), cloud);
+    // 太阳：锐利日面 + 内晕 + 大范围前向散射
+    float disc = smoothstep(0.99955, 0.99985, sunDot);
+    float innerGlow = pow(sunDot, 900.0) * 2.2;
+    float midGlow = pow(sunDot, 24.0) * 0.35;
+    float wideGlow = pow(sunDot, 3.0) * 0.14;
+    float3 sunColor = float3(1.0, 0.95, 0.82);
+    sky += sunColor * (innerGlow + midGlow + wideGlow);
+    sky = mix(sky, float3(1.0, 0.99, 0.94), disc);
+
+    // 云：两层不同速度和尺度的程序化云带，只在高空出现
+    float highMask = smoothstep(0.02, 0.30, h);
+    float c1 = sin(dir.x * 2.6 + time * 0.010) * cos(dir.z * 2.1 - time * 0.008);
+    float c2 = sin(dir.x * 6.1 - time * 0.016 + 1.7) * cos(dir.z * 5.3 + time * 0.011);
+    float cloud = smoothstep(0.20, 0.85, c1 * 0.75 + c2 * 0.35);
+    float3 cloudColor = mix(float3(0.86, 0.88, 0.92), float3(1.0), sunDot);
+    sky = mix(sky, cloudColor, cloud * highMask * 0.55);
+
+    // 靠近太阳的云被照亮
+    sky += sunColor * cloud * highMask * pow(sunDot, 6.0) * 0.5;
 
     return float4(sky, 1.0);
 }

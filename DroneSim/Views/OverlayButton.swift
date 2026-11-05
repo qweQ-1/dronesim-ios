@@ -21,7 +21,7 @@ final class OverlayButton: UIView {
 
     private func setup(title: String, symbol: String) {
         backgroundColor = UIColor.black.withAlphaComponent(0.38)
-        layer.cornerRadius = 26
+        layer.cornerRadius = 23
         layer.borderWidth = 1
         layer.borderColor = UIColor.white.withAlphaComponent(0.28).cgColor
 
@@ -41,8 +41,8 @@ final class OverlayButton: UIView {
         NSLayoutConstraint.activate([
             iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor, constant: -6),
-            iconView.widthAnchor.constraint(equalToConstant: 19),
-            iconView.heightAnchor.constraint(equalToConstant: 19),
+            iconView.widthAnchor.constraint(equalToConstant: 17),
+            iconView.heightAnchor.constraint(equalToConstant: 17),
             titleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
             titleLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 1),
         ])
@@ -65,8 +65,30 @@ final class OverlayButton: UIView {
         accessibilityLabel = titleLabel.text
     }
 
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesBegan(touches, with: event)
+        // 按下时视觉反馈，让玩家知道按钮响应了
+        UIView.animate(withDuration: 0.08) {
+            self.transform = CGAffineTransform(scaleX: 0.9, y: 0.9)
+            self.backgroundColor = UIColor.white.withAlphaComponent(0.30)
+        }
+    }
+
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         super.touchesEnded(touches, with: event)
+        UIView.animate(withDuration: 0.12) {
+            self.transform = .identity
+            self.backgroundColor = UIColor.black.withAlphaComponent(0.38)
+        }
+        Haptics.selection()
         onTap?()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        super.touchesCancelled(touches, with: event)
+        UIView.animate(withDuration: 0.12) {
+            self.transform = .identity
+            self.backgroundColor = UIColor.black.withAlphaComponent(0.38)
+        }
     }
 }

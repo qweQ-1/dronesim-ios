@@ -40,17 +40,33 @@ final class ControlOverlayView: UIView {
     private func setup() {
         backgroundColor = .clear
 
-        leftStick.translatesAutoresizingMaskIntoConstraints = false
-        rightStick.translatesAutoresizingMaskIntoConstraints = false
+        // 摇杆：固定在底部两角，常驻可见。
+        // 视图比底座大一圈，留出手指的活动余量。
         leftStick.isLeftStick = true
         rightStick.isLeftStick = false
-        addSubview(leftStick)
-        addSubview(rightStick)
-        // 摇杆铺满半屏，会在无障碍树里遮挡按钮 —— 让它不参与无障碍。
         leftStick.isAccessibilityElement = false
         rightStick.isAccessibilityElement = false
         leftStick.accessibilityElementsHidden = true
         rightStick.accessibilityElementsHidden = true
+        leftStick.translatesAutoresizingMaskIntoConstraints = false
+        rightStick.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(leftStick)
+        addSubview(rightStick)
+        NSLayoutConstraint.activate([
+            leftStick.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
+            leftStick.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            leftStick.widthAnchor.constraint(equalToConstant: 230),
+            leftStick.heightAnchor.constraint(equalToConstant: 230),
+
+            rightStick.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
+            rightStick.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -8),
+            rightStick.widthAnchor.constraint(equalToConstant: 230),
+            rightStick.heightAnchor.constraint(equalToConstant: 230),
+        ])
+
+        // 摇杆的拖动反馈（轻微震动）
+        leftStick.onEngage = { Haptics.impact(.light) }
+        rightStick.onEngage = { Haptics.impact(.light) }
 
         // 启动标记
         readyMarker.translatesAutoresizingMaskIntoConstraints = false
@@ -68,45 +84,32 @@ final class ControlOverlayView: UIView {
             readyMarker.heightAnchor.constraint(equalToConstant: 1),
         ])
 
-        // 摇杆视图铺满左右半屏，这样屏幕上任何位置的拖动都能被对应的摇杆捕获，
-        // 而摇杆图案只画在实际接触点附近（见 VirtualJoystick 的绘制逻辑）。
-        NSLayoutConstraint.activate([
-            leftStick.topAnchor.constraint(equalTo: topAnchor),
-            leftStick.bottomAnchor.constraint(equalTo: bottomAnchor),
-            leftStick.leadingAnchor.constraint(equalTo: leadingAnchor),
-            leftStick.trailingAnchor.constraint(equalTo: centerXAnchor),
-
-            rightStick.topAnchor.constraint(equalTo: topAnchor),
-            rightStick.bottomAnchor.constraint(equalTo: bottomAnchor),
-            rightStick.leadingAnchor.constraint(equalTo: centerXAnchor),
-            rightStick.trailingAnchor.constraint(equalTo: trailingAnchor),
-        ])
-
-        // 按钮组：右侧竖排
+        // 按钮：顶部横向一排。
+        // 竖排会超出横屏高度（7 个 × 61pt = 427pt，可用高度只有约 390pt），
+        // 排在顶部横着放才放得下，也不和底部摇杆抢空间。
         let buttons = [armButton, cameraButton, modeButton, altitudeButton,
                        motionButton, pauseButton, resetButton]
-        armButton.setIdentifier("button.arm")
-        cameraButton.setIdentifier("button.camera")
-        modeButton.setIdentifier("button.mode")
-        altitudeButton.setIdentifier("button.altitude")
-        motionButton.setIdentifier("button.motion")
-        pauseButton.setIdentifier("button.pause")
-        resetButton.setIdentifier("button.reset")
-        var previousButton: OverlayButton?
+        let identifiers = ["button.arm", "button.camera", "button.mode", "button.altitude",
+                           "button.motion", "button.pause", "button.reset"]
+        for (button, identifier) in zip(buttons, identifiers) {
+            button.setIdentifier(identifier)
+        }
+
+        let row = UIStackView(arrangedSubviews: buttons)
+        row.axis = .horizontal
+        row.spacing = 7
+        row.alignment = .center
+        row.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(row)
+        NSLayoutConstraint.activate([
+            row.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 6),
+            row.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -14),
+        ])
         for button in buttons {
-            button.translatesAutoresizingMaskIntoConstraints = false
-            addSubview(button)
             NSLayoutConstraint.activate([
-                button.widthAnchor.constraint(equalToConstant: 52),
-                button.heightAnchor.constraint(equalToConstant: 52),
-                button.trailingAnchor.constraint(equalTo: safeAreaLayoutGuide.trailingAnchor, constant: -18),
+                button.widthAnchor.constraint(equalToConstant: 46),
+                button.heightAnchor.constraint(equalToConstant: 46),
             ])
-            if let previousButton {
-                button.topAnchor.constraint(equalTo: previousButton.bottomAnchor, constant: 9).isActive = true
-            } else {
-                button.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor, constant: 52).isActive = true
-            }
-            previousButton = button
         }
     }
 }
