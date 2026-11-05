@@ -16,8 +16,11 @@ toolchain:
   ios: '26.4'
 
 build_test:
+  # 只配 fast_test_plan，不配 full_test_plan：
+  # resolve-suite 在只有一份计划时会走 default 分支，跑 scheme 的全部测试
+  # （目前就是 DroneSimTests 单元测试），push 到 main 也不会切到 UI 慢线。
+  # 等 UI 测试 target 的加载问题解决后再补 full_test_plan 和 ui_test_target。
   fast_test_plan: Fast
-  full_test_plan: Full
   accessibility_audit: warn
 
 testflight:
