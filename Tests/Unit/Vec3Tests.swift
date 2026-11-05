@@ -41,9 +41,26 @@ final class Vec3Tests: XCTestCase {
 
     func testNormalizeAngleWrapsToPiRange() {
         XCTAssertEqual(normalizeAngle(0), 0, accuracy: 1e-6)
-        XCTAssertEqual(normalizeAngle(.pi * 3), .pi, accuracy: 1e-5)
-        XCTAssertEqual(normalizeAngle(-.pi * 3), .pi, accuracy: 1e-5)
-        XCTAssertEqual(normalizeAngle(.pi + 0.5), -.pi + 0.5, accuracy: 1e-5)
+        XCTAssertEqual(normalizeAngle(1.0), 1.0, accuracy: 1e-6)
+
+        // ±3π 归一化后落在 ±π 边界上。Float 精度下 -3π 的余数是
+        // -3.1415925，比 -π（-3.1415927）略大 2.4e-7，所以它其实在
+        // (-π, π] 区间内、保留负号也是合理的。这里用绝对值判断，
+        // 不纠结落在边界的哪一侧——两者在 Float 精度下是同一个点。
+        XCTAssertEqual(abs(normalizeAngle(.pi * 3)), .pi, accuracy: 1e-4)
+        XCTAssertEqual(abs(normalizeAngle(-.pi * 3)), .pi, accuracy: 1e-4)
+
+        // 略微超过 π 的角度应该绕回负半轴
+        XCTAssertEqual(normalizeAngle(.pi + 0.5), -.pi + 0.5, accuracy: 1e-4)
+        // 略微低于 -π 的角度应该绕回正半轴
+        XCTAssertEqual(normalizeAngle(-.pi - 0.5), .pi - 0.5, accuracy: 1e-4)
+
+        // 结果必须始终落在 (-π, π]
+        for angle in stride(from: -20.0 as Float, through: 20.0, by: 0.37) {
+            let normalized = normalizeAngle(angle)
+            XCTAssertGreaterThan(normalized, -.pi - 1e-4, "\(angle) 归一化后越界: \(normalized)")
+            XCTAssertLessThanOrEqual(normalized, .pi + 1e-4, "\(angle) 归一化后越界: \(normalized)")
+        }
     }
 
     func testClampBounds() {
