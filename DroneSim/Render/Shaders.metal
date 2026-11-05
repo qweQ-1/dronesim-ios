@@ -139,9 +139,11 @@ struct InstancedUniforms {
     uint     count;
 };
 
+// 注意：实例数据是数组，必须用指针类型（`constant InstanceData*`），
+// 用引用（`constant InstanceData&`）没法下标访问。
 vertex ObjVertexOut instancedVertex(ObjVertexIn in [[stage_in]],
                                     constant InstancedUniforms& u [[buffer(0)]],
-                                    constant InstanceData& instances [[buffer(2)]],
+                                    constant InstanceData* instances [[buffer(2)]],
                                     uint iid [[instance_id]]) {
     ObjVertexOut out;
     float4 world = instances[iid].model * float4(in.position, 1.0);
