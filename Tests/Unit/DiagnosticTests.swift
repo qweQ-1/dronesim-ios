@@ -6,7 +6,7 @@ import XCTest
 final class DiagnosticTests: XCTestCase {
 
     func testHoverDiagnostics() {
-        let dynamics = FlightDynamics()
+        var dynamics = FlightDynamics()
         let spec = dynamics.spec
 
         let hover = spec.hoverRotorSpeed
