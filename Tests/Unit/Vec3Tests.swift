@@ -78,7 +78,7 @@ final class Vec3Tests: XCTestCase {
     }
 
     func testLerp() {
-        XCTAssertEqual(lerp(Vec3(0, 0, 0), Vec3(10, 20, 30), 0.5), Vec3(5, 10, 15))
+        XCTAssertEqual(Vec3.lerp(Vec3(0, 0, 0), Vec3(10, 20, 30), 0.5), Vec3(5, 10, 15))
         XCTAssertEqual(lerp(0.0, 10.0, 0.25), 2.5)
     }
 
