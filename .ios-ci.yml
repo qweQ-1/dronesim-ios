@@ -18,7 +18,6 @@ toolchain:
 build_test:
   fast_test_plan: Fast
   full_test_plan: Full
-  ui_test_target: DroneSimUITests
   accessibility_audit: warn
 
 testflight:

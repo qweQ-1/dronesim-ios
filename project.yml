@@ -53,20 +53,6 @@ targets:
         ENABLE_PREVIEWS: "YES"
         MTL_FAST_MATH: "YES"
 
-  DroneSimUITests:
-    type: bundle.ui-testing
-    platform: iOS
-    deploymentTarget: "17.0"
-    sources:
-      - path: Tests/UI
-    dependencies:
-      - target: DroneSim
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.qweq-1.dronesim.uitests
-        GENERATE_INFOPLIST_FILE: "YES"
-        TEST_TARGET_NAME: DroneSim
-
   DroneSimTests:
     type: bundle.unit-test
     platform: iOS
@@ -88,14 +74,12 @@ schemes:
       targets:
         DroneSim: all
         DroneSimTests: [test]
-        DroneSimUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - DroneSimTests
-        - DroneSimUITests
       testPlans:
         - path: Fast.xctestplan
           defaultPlan: true

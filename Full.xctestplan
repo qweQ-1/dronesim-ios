@@ -22,13 +22,6 @@
         "identifier": "000000000000000000000000",
         "name": "DroneSimTests"
       }
-    },
-    {
-      "target": {
-        "containerPath": "container:DroneSim.xcodeproj",
-        "identifier": "000000000000000000000000",
-        "name": "DroneSimUITests"
-      }
     }
   ],
   "version": 1

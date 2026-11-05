@@ -54,11 +54,13 @@ final class DroneSimUITests: XCTestCase {
 
         for identifier in ["button.arm", "button.camera", "button.mode", "button.altitude"] {
             if !app.buttons[identifier].exists {
-                let attachment = XCTAttachment(string: app.debugDescription)
-                attachment.name = "accessibility-tree-\(identifier)"
-                attachment.lifetime = .keepAlways
-                add(attachment)
-                XCTFail("应存在 \(identifier)")
+                // 打印按钮数量和前几个可见元素，便于在 CI 日志里定位
+                let buttons = app.buttons.allElementsBoundByIndex.prefix(10)
+                    .map { "\($0.identifier ?? "?")/\($0.label ?? "?")" }
+                    .joined(separator: ", ")
+                let all = app.descendants(matching: .any).allElementsBoundByIndex.count
+                XCTFail("应存在 \(identifier)；当前按钮数=\(app.buttons.count) [\(buttons)]；"
+                      + "元素总数=\(all)；app=\(app)")
             }
         }
     }
