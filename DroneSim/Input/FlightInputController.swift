@@ -30,7 +30,7 @@ final class VirtualJoystick: UIView {
     var onRelease: (() -> Void)?
 
     private weak var trackedTouch: UITouch?
-    private var center: CGPoint = .zero
+    private var stickCenter: CGPoint = .zero
 
     private let baseFill = CAShapeLayer()
     private let baseRing = CAShapeLayer()
@@ -74,7 +74,7 @@ final class VirtualJoystick: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        center = CGPoint(x: bounds.midX, y: bounds.midY)
+        stickCenter = CGPoint(x: bounds.midX, y: bounds.midY)
         // 底座直径不超过视图短边的 80%，避免贴边或溢出
         radius = min(radius, min(bounds.width, bounds.height) * 0.4)
         redrawBase(highlighted: isActive)
@@ -84,7 +84,7 @@ final class VirtualJoystick: UIView {
     // MARK: 绘制
 
     private func redrawBase(highlighted: Bool) {
-        baseFill.path = UIBezierPath(arcCenter: center, radius: radius,
+        baseFill.path = UIBezierPath(arcCenter: stickCenter, radius: radius,
                                      startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
         baseRing.path = baseFill.path
         baseRing.strokeColor = UIColor.white
@@ -94,18 +94,18 @@ final class VirtualJoystick: UIView {
 
         // 十字准线，帮助判断回中
         let path = UIBezierPath()
-        path.move(to: CGPoint(x: center.x - radius, y: center.y))
-        path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
-        path.move(to: CGPoint(x: center.x, y: center.y - radius))
-        path.addLine(to: CGPoint(x: center.x, y: center.y + radius))
+        path.move(to: CGPoint(x: stickCenter.x - radius, y: stickCenter.y))
+        path.addLine(to: CGPoint(x: stickCenter.x + radius, y: stickCenter.y))
+        path.move(to: CGPoint(x: stickCenter.x, y: stickCenter.y - radius))
+        path.addLine(to: CGPoint(x: stickCenter.x, y: stickCenter.y + radius))
         crosshair.path = path.cgPath
     }
 
     private func redrawKnob() {
         let knobRadius = radius * 0.36
         let knobCenter = CGPoint(
-            x: center.x + value.x * (radius - knobRadius),
-            y: center.y - value.y * (radius - knobRadius)
+            x: stickCenter.x + value.x * (radius - knobRadius),
+            y: stickCenter.y - value.y * (radius - knobRadius)
         )
         knob.path = UIBezierPath(arcCenter: knobCenter, radius: knobRadius,
                                  startAngle: 0, endAngle: 2 * .pi, clockwise: true).cgPath
@@ -154,8 +154,8 @@ final class VirtualJoystick: UIView {
 
     private func updateValue(for touch: UITouch) {
         let p = touch.location(in: self)
-        let dx = p.x - center.x
-        let dy = p.y - center.y
+        let dx = p.x - stickCenter.x
+        let dy = p.y - stickCenter.y
         let distance = (dx * dx + dy * dy).squareRoot()
 
         guard distance > 1 else {
