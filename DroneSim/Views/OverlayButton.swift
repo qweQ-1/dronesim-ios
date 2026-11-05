@@ -50,6 +50,10 @@ final class OverlayButton: UIView {
 
     func setTitle(_ title: String) {
         titleLabel.text = title
+        // 标题变了要同步更新无障碍标签，否则 UI 测试读到的是旧文本。
+        if isAccessibilityElement {
+            accessibilityLabel = title
+        }
     }
 
     /// 无障碍标识（UI 测试用）。
