@@ -28,14 +28,12 @@ final class DiagnosticTests: XCTestCase {
                           dt: FlightDynamics.fixedTimeStep)
         }
 
-        let report = """
-        DIAG | 怠速=\(spec.idleRotorSpeed) 悬停=\(spec.hoverRotorSpeed) 满速=\(spec.maxRotorSpeed)
-        DIAG | 指令转速=\(commanded)
-        DIAG | 单旋翼推力=\(thrustPer) 总推力=\(totalThrust) 重力=\(weight)
-        DIAG | 推力系数=\(spec.thrustCoefficient) 电机上限=\(dynamics.motor.maxThrust)
-        DIAG | 1秒后 vy=\(state.velocity.y) y=\(state.position.y) 电机=\(state.motorSpeeds)
-        DIAG | 姿态 up.y=\(state.attitude.up.y) mode=\(state.mode)
-        """
+        // 必须写成单行：CI 的日志会把多行消息截断，只看得到第一行
+        let report = "DIAG idle=\(spec.idleRotorSpeed) hover=\(spec.hoverRotorSpeed)"
+            + " cmd=\(commanded[0]) per=\(thrustPer) total=\(totalThrust) weight=\(weight)"
+            + " k=\(spec.thrustCoefficient) cap=\(dynamics.motor.maxThrust)"
+            + " | 1s: vy=\(state.velocity.y) y=\(state.position.y) m=\(state.motorSpeeds[0])"
+            + " up=\(state.attitude.up.y) mode=\(state.mode)"
         XCTFail(report)
     }
 }
