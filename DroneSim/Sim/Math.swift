@@ -73,18 +73,18 @@ public struct Vec3: Equatable, Sendable {
 @inlinable public func lerp(_ a: Float, _ b: Float, _ t: Float) -> Float { a + (b - a) * t }
 
 /// 把角度归一化到 (-π, π]。
-/// 把角度归一化到 (-π, π]。
 @inlinable public func normalizeAngle(_ a: Float) -> Float {
-    let twoPi = 2 * Float.pi
+    let pi: Float = .pi
+    let twoPi: Float = 2 * pi
     var x = a.truncatingRemainder(dividingBy: twoPi)
     // 浮点误差：-3π 的余数会算成 -3.1415925（比 -π 略大一点点），
     // 于是没能映射到 +π。区间是 (-π, π]，所以接近 -π 时统一取 +π。
-    if abs(x + .pi) < 1e-4 {
-        return .pi
+    if abs(x + pi) < 1e-3 {
+        return pi
     }
-    if x > .pi {
+    if x > pi {
         x -= twoPi
-    } else if x <= -.pi {
+    } else if x <= -pi {
         x += twoPi
     }
     return x
