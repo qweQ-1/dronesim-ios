@@ -36,7 +36,7 @@ final class GeometryTests: XCTestCase {
         let field = TerrainField(size: 100, seed: 42)
         let mesh = GeometryBuilder.terrain(field: field, resolution: 8)
         for vertex in mesh.vertices {
-            XCTAssertEqual(vertex.normal.length, 1, accuracy: 1e-3)
+            XCTAssertEqual(simd_length(vertex.normal), 1, accuracy: 1e-3)
         }
     }
 

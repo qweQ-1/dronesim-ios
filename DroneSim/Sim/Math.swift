@@ -23,6 +23,13 @@ public struct Vec3: Equatable, Sendable {
 
     @inlinable public var lengthSquared: Float { x * x + y * y + z * z }
 
+    /// 逐分量与另一个向量相差是否在容差内（给测试用，避免依赖 FloatingPoint 协议）。
+    @inlinable public func isClose(to other: Vec3, accuracy: Float) -> Bool {
+        abs(x - other.x) <= accuracy
+            && abs(y - other.y) <= accuracy
+            && abs(z - other.z) <= accuracy
+    }
+
     @inlinable public var normalized: Vec3 {
         let l = length
         guard l > 1e-8 else { return .zero }

@@ -58,7 +58,7 @@ final class GameViewController: UIViewController {
         renderer.prepareWorld(terrainSize: terrainSize,
                              terrainResolution: terrainResolution,
                              seed: worldSeed)
-        renderer.setSunDirection(normalize(SIMD3<Float>(0.42, 0.72, 0.34)))
+        renderer.setSunDirection(simd_normalize(SIMD3<Float>(0.42, 0.72, 0.34)))
 
         // 视图
         metalView.translatesAutoresizingMaskIntoConstraints = false
@@ -222,7 +222,7 @@ final class GameViewController: UIViewController {
             let speedFactor = min(state.airspeed / 12.0, 1.0)
             let distance: Float = 2.6 + speedFactor * 2.2
             let height: Float = 0.85 + speedFactor * 0.5
-            let flatForward = normalize(SIMD3<Float>(forward.x, 0, forward.z))
+            let flatForward = simd_normalize(SIMD3<Float>(forward.x, 0, forward.z))
             let camPos = dronePos - flatForward * distance + worldUp * height
             let dir = normalize(dronePos + worldUp * 0.15 - camPos)
             return (camPos, dir, worldUp, 68)

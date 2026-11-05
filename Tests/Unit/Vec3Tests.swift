@@ -25,7 +25,7 @@ final class Vec3Tests: XCTestCase {
         let a = Vec3(1, 0, 0)
         let b = Vec3(0, 1, 0)
         let c = a.cross(b)
-        XCTAssertEqual(c, Vec3(0, 0, 1), accuracy: 1e-6)
+        XCTAssertEqualVec(c, Vec3(0, 0, 1), accuracy: 1e-6)
         XCTAssertEqual(a * c, 0, accuracy: 1e-6)
         XCTAssertEqual(b * c, 0, accuracy: 1e-6)
     }

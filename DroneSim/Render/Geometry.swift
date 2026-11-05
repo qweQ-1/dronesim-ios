@@ -38,7 +38,7 @@ struct TerrainField {
         let hR = height(x: x + e, z: z)
         let hD = height(x: x, z: z - e)
         let hU = height(x: x, z: z + e)
-        return normalize(SIMD3<Float>(hL - hR, 2 * e, hD - hU))
+        return simd_normalize(SIMD3<Float>(hL - hR, 2 * e, hD - hU))
     }
 
     private func fbm(x: Float, z: Float, seed: UInt64, octaves: Int) -> Float {
@@ -303,7 +303,7 @@ enum GeometryBuilder {
         for i in 0..<segments {
             let a = Float(i) / Float(segments) * 2 * .pi
             let x = cos(a) * radius, z = sin(a) * radius
-            let n = normalize(SIMD3<Float>(cos(a), height, sin(a)))
+            let n = simd_normalize(SIMD3<Float>(cos(a), height, sin(a)))
             vertices.append(MeshVertex(position: SIMD3(x, baseY, z), normal: n,
                                        color: color, uv: SIMD2(Float(i) / Float(segments), 0)))
         }

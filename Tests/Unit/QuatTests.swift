@@ -7,7 +7,7 @@ final class QuatTests: XCTestCase {
     func testIdentityRotatesNothing() {
         let q = Quat.identity
         let v = Vec3(1, 2, 3)
-        XCTAssertEqual(q.rotated(v), v, accuracy: 1e-5)
+        XCTAssertEqualVec(q.rotated(v), v, accuracy: 1e-5)
     }
 
     func testAxisRotationByNinetyDegrees() {
@@ -51,7 +51,7 @@ final class QuatTests: XCTestCase {
         // 右手系：right = forward × up
         let frame = BodyFrame(forward: Vec3(0, 0, -1), up: Vec3(0, 1, 0))
         // forward × up = (0,0,-1) × (0,1,0) = (1, 0, 0)
-        XCTAssertEqual(frame.right, Vec3(1, 0, 0), accuracy: 1e-5)
+        XCTAssertEqualVec(frame.right, Vec3(1, 0, 0), accuracy: 1e-5)
     }
 
     func testBodyFrameRoundTrip() {
@@ -75,9 +75,9 @@ final class QuatTests: XCTestCase {
         let forward = Vec3(0, 0, -1)
         let up = Vec3(0, 1, 0)
         let q = Quat(forward: forward, up: up)
-        XCTAssertEqual(q.forward, forward, accuracy: 1e-4)
-        XCTAssertEqual(q.up, up, accuracy: 1e-4)
-        XCTAssertEqual(q.right, Vec3(1, 0, 0), accuracy: 1e-4)
+        XCTAssertEqualVec(q.forward, forward, accuracy: 1e-4)
+        XCTAssertEqualVec(q.up, up, accuracy: 1e-4)
+        XCTAssertEqualVec(q.right, Vec3(1, 0, 0), accuracy: 1e-4)
     }
 
     func testQuaternionFromArbitraryBasis() {

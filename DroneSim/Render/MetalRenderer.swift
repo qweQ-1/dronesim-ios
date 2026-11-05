@@ -51,7 +51,7 @@ final class MetalRenderer {
     private var cameraPosition: SIMD3<Float> = .zero
 
     // MARK: 光照
-    private var sunDirection: SIMD3<Float> = normalize(SIMD3<Float>(0.42, 0.72, 0.34))
+    private var sunDirection: SIMD3<Float> = simd_normalize(SIMD3<Float>(0.42, 0.72, 0.34))
 
     // MARK: 统计
     private(set) var drawCallCount: Int = 0
