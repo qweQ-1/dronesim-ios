@@ -53,8 +53,11 @@ public struct DroneSpec: Equatable, Sendable {
         self.frameDragCoefficient = frameDragCoefficient
         self.armLength = armLength
         self.maxRotorSpeed = maxRotorSpeed
+
         // 怠速推力必须小于悬停推力，否则上锁时机体也会被顶起来。
-        let idleThrust = thrustCoefficient * idleRotorSpeed * idleRotorSpeed
+        // 注意：这里不能用 self.thrustCoefficient（计算属性依赖尚未初始化的存储属性）。
+        let coefficient = airDensity * rotorArea * (bladePitch * .pi / 180 * 1.6)
+        let idleThrust = coefficient * idleRotorSpeed * idleRotorSpeed
         let hoverThrust = mass * 9.81 / 4
         self.idleRotorSpeed = idleThrust < hoverThrust ? idleRotorSpeed : 0
         self.batteryEnergy = batteryEnergy
