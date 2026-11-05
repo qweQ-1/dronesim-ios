@@ -105,14 +105,26 @@ final class MetalRenderer {
 
     // MARK: - 初始化
 
+    /// 初始化失败时的原因（供 UI 显示，别让用户只看到「不支持」）。
+    private(set) static var lastFailureReason: String?
+
     init?(device: MTLDevice? = MTLCreateSystemDefaultDevice()) {
-        guard let device, let queue = device.makeCommandQueue() else { return nil }
+        guard let device else {
+            Self.lastFailureReason = "无法创建 Metal 设备"
+            return nil
+        }
+        guard let queue = device.makeCommandQueue() else {
+            Self.lastFailureReason = "无法创建 Metal 命令队列"
+            return nil
+        }
         self.device = device
         self.commandQueue = queue
         commandQueue.label = "com.qweq-1.dronesim.queue"
 
         buildPipelines()
-        guard terrainPipeline != nil, objectPipeline != nil, instancedPipeline != nil, skyPipeline != nil else {
+        guard terrainPipeline != nil, objectPipeline != nil,
+              instancedPipeline != nil, skyPipeline != nil else {
+            Self.lastFailureReason = "Metal 管线创建失败"
             return nil
         }
     }
@@ -120,11 +132,15 @@ final class MetalRenderer {
     // MARK: - 管线
 
     private func buildPipelines() {
-        // 着色器从源码字符串编译，避免依赖 .metal 编译单元与 XcodeGen 的配合。
-        guard let terrainLib = try? device.makeLibrary(source: Shaders.terrainSource, options: nil),
-              let objectLib = try? device.makeLibrary(source: Shaders.objectSource, options: nil) else {
+        // 着色器是编译期打包进来的 .metal 文件（Shaders.metal），
+        // 用默认库加载 —— 运行期不再做源码编译，不会因为字符串里的
+        // 语法问题在真机上失败（之前用 makeLibrary(source:) 就是这么翻车的）。
+        guard let library = device.makeDefaultLibrary() else {
+            Self.lastFailureReason = "找不到 Metal 默认库（着色器未打包）"
             return
         }
+        let terrainLib = library
+        let objectLib = library
 
         let terrainDesc = MTLRenderPipelineDescriptor()
         terrainDesc.vertexFunction = terrainLib.makeFunction(name: "terrainVertex")
@@ -132,7 +148,11 @@ final class MetalRenderer {
         terrainDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: true)
         terrainDesc.colorAttachments[0].pixelFormat = pixelFormat
         terrainDesc.depthAttachmentPixelFormat = .depth32Float
-        terrainPipeline = try? device.makeRenderPipelineState(descriptor: terrainDesc)
+        do {
+            terrainPipeline = try device.makeRenderPipelineState(descriptor: terrainDesc)
+        } catch {
+            Self.lastFailureReason = "地形管线失败：\(error.localizedDescription)"
+        }
 
         let objectDesc = MTLRenderPipelineDescriptor()
         objectDesc.vertexFunction = objectLib.makeFunction(name: "objectVertex")
@@ -140,7 +160,11 @@ final class MetalRenderer {
         objectDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: false)
         objectDesc.colorAttachments[0].pixelFormat = pixelFormat
         objectDesc.depthAttachmentPixelFormat = .depth32Float
-        objectPipeline = try? device.makeRenderPipelineState(descriptor: objectDesc)
+        do {
+            objectPipeline = try device.makeRenderPipelineState(descriptor: objectDesc)
+        } catch {
+            Self.lastFailureReason = "物体管线失败：\(error.localizedDescription)"
+        }
 
         let instDesc = MTLRenderPipelineDescriptor()
         instDesc.vertexFunction = objectLib.makeFunction(name: "instancedVertex")
@@ -148,7 +172,11 @@ final class MetalRenderer {
         instDesc.vertexDescriptor = Self.makeVertexDescriptor(includeUV: false)
         instDesc.colorAttachments[0].pixelFormat = pixelFormat
         instDesc.depthAttachmentPixelFormat = .depth32Float
-        instancedPipeline = try? device.makeRenderPipelineState(descriptor: instDesc)
+        do {
+            instancedPipeline = try device.makeRenderPipelineState(descriptor: instDesc)
+        } catch {
+            Self.lastFailureReason = "实例管线失败：\(error.localizedDescription)"
+        }
 
         let skyDesc = MTLRenderPipelineDescriptor()
         skyDesc.vertexFunction = objectLib.makeFunction(name: "skyVertex")
@@ -156,7 +184,11 @@ final class MetalRenderer {
         skyDesc.vertexDescriptor = nil
         skyDesc.colorAttachments[0].pixelFormat = pixelFormat
         skyDesc.depthAttachmentPixelFormat = .depth32Float
-        skyPipeline = try? device.makeRenderPipelineState(descriptor: skyDesc)
+        do {
+            skyPipeline = try device.makeRenderPipelineState(descriptor: skyDesc)
+        } catch {
+            Self.lastFailureReason = "天空管线失败：\(error.localizedDescription)"
+        }
     }
 
     /// 顶点描述符。属性顺序必须与 `MeshVertex` 字段顺序一致：

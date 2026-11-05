@@ -53,7 +53,8 @@ final class GameViewController: UIViewController {
         view.backgroundColor = .black
 
         guard let renderer = MetalRenderer() else {
-            showFatalError("此设备不支持 Metal 渲染")
+            let reason = MetalRenderer.lastFailureReason ?? "未知原因"
+            showFatalError("渲染初始化失败：\(reason)")
             return
         }
         self.renderer = renderer

@@ -17,6 +17,8 @@ targets:
     platform: iOS
     deploymentTarget: "17.0"
     sources:
+      # 整个目录（包含 Render/Shaders.metal）。XcodeGen 会自动把 .metal
+      # 放进 Compile Sources 的 Metal 编译阶段，打包成 default.metallib。
       - path: DroneSim
     info:
       path: DroneSim/Info.plist
