@@ -156,13 +156,25 @@ public struct Quat: Equatable, Sendable {
         )
     }
 
-    /// 四元数积分：q' = q + 0.5 * ω ⊗ q * dt（机体角速度）。
+    /// 四元数积分（机体角速度）：q' = exp(½·ω·dt) ⊗ q。
+    ///
+    /// 用指数映射而不是一阶欧拉：欧拉在 dt 较大时误差明显
+    /// （转 1 rad 会算成 0.927 rad），指数映射是精确的。
     @inlinable public func integrated(byBodyAngularVelocity omega: Vec3, dt: Float) -> Quat {
-        let dq = Quat(0, omega.x, omega.y, omega.z) * self
-        return Quat(w + dq.w * 0.5 * dt,
-                    x + dq.x * 0.5 * dt,
-                    y + dq.y * 0.5 * dt,
-                    z + dq.z * 0.5 * dt).normalized
+        let theta = omega.length
+        guard theta > 1e-9, dt != 0 else {
+            // 角速度极小时退化成欧拉步
+            let dq = Quat(0, omega.x, omega.y, omega.z) * self
+            return Quat(w + dq.w * 0.5 * dt,
+                        x + dq.x * 0.5 * dt,
+                        y + dq.y * 0.5 * dt,
+                        z + dq.z * 0.5 * dt).normalized
+        }
+        let angle = theta * dt
+        let half = angle * 0.5
+        let scale = sin(half) / theta
+        let delta = Quat(cos(half), omega.x * scale, omega.y * scale, omega.z * scale)
+        return (delta * self).normalized
     }
 
     /// 从四元数取机体角速度（与 integrated 互逆）。

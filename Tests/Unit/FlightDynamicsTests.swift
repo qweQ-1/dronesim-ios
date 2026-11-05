@@ -32,18 +32,26 @@ final class FlightDynamicsTests: XCTestCase {
     }
 
     func testHoverThrustBalancesGravity() {
-        // 给一个恰好能悬停的油门，稳态时高度不应该持续变化
+        // 油门映射的定义是：0 → 怠速，0.42 → 悬停转速，1 → 满速。
+        // 所以悬停油门就是 0.42（之前这里用错公式反推，
+        // 把它当成「hover→max 段的比例」，算出的油门远大于悬停点，
+        // 于是机体一路加速上升 17 米）。
         var dynamics = FlightDynamics()
         let spec = dynamics.spec
+
+        // 先确认 0.42 油门确实映射到悬停转速
         let hoverSpeed = spec.hoverRotorSpeed
-        let idle = spec.idleRotorSpeed
-        let maxS = spec.maxRotorSpeed
-        // 反推 throttle：0.42 → hover，1.0 → max
-        let throttle = 0.42 + (hoverSpeed - idle) / (maxS - idle) * 0.58
+        var probe = FlightState()
+        probe.mode = .stabilized
+        var probeInput = ControlInput(throttle: 0.42)
+        probeInput.altitudeMode = .manual
+        let commanded = dynamics.commandedRotorSpeeds(input: probeInput, state: probe)
+        XCTAssertEqual(commanded[0], hoverSpeed, accuracy: hoverSpeed * 0.02,
+                       "油门 0.42 应对应悬停转速")
 
         var state = FlightState(position: Vec3(0, 10, 0))
         state.mode = .stabilized
-        var input = ControlInput(throttle: throttle)
+        var input = ControlInput(throttle: 0.42)
         input.altitudeMode = .manual
 
         let before = state.position.y
