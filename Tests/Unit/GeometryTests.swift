@@ -126,7 +126,10 @@ final class GeometryTests: XCTestCase {
     }
 
     func testInstancedUniformsLayout() {
-        XCTAssertEqual(MemoryLayout<InstancedUniforms>.size, 128)
+        // Swift 侧最后一个字段是 UInt32，结构体 size 到 116 结束（尾部无 padding）。
+        // Metal 侧的 float4/uint 布局要求对齐到 16 字节，但那是着色器读取时的对齐，
+        // 与 Swift 结构体的实际 size 无关——offset 才是关键。
+        XCTAssertEqual(MemoryLayout<InstancedUniforms>.size, 116)
         XCTAssertEqual(MemoryLayout<InstancedUniforms>.offset(of: \.lightDir), 64)
         XCTAssertEqual(MemoryLayout<InstancedUniforms>.offset(of: \.cameraPos), 80)
         XCTAssertEqual(MemoryLayout<InstancedUniforms>.offset(of: \.params), 96)

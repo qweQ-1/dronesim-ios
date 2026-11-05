@@ -29,7 +29,11 @@ final class HUDView: UIView {
 
     private func setup() {
         backgroundColor = .clear
+        // 不接收触摸（让下面的控制层可交互），但 HUD 里的文字必须留在无障碍树里，
+        // 否则 XCUITest 找不到。accessibilityElementsHidden 只影响自身，
+        // 子元素是否暴露由子元素自己的 isAccessibilityElement 决定。
         isUserInteractionEnabled = false
+        accessibilityElementsHidden = false
 
         configureLabel(altitudeLabel, size: 34, weight: .heavy, color: .white)
         configureLabel(speedLabel, size: 26, weight: .bold, color: .white)
@@ -44,6 +48,9 @@ final class HUDView: UIView {
         // 必须显式打开，XCUITest 才能按 identifier 定位。
         altitudeCaption.isAccessibilityElement = true
         altitudeCaption.accessibilityIdentifier = "hud.altitude.caption"
+        // 速度标签也标一个，UI 测试可以交叉验证 HUD 真的在更新
+        speedLabel.isAccessibilityElement = true
+        speedLabel.accessibilityIdentifier = "hud.speed"
 
         speedCaption.text = "速度 km/h"
         speedCaption.font = .systemFont(ofSize: 11, weight: .medium)
@@ -177,7 +184,11 @@ final class AttitudeIndicatorView: UIView {
 
     private func setup() {
         backgroundColor = .clear
+        // 不接收触摸（让下面的控制层可交互），但 HUD 里的文字必须留在无障碍树里，
+        // 否则 XCUITest 找不到。accessibilityElementsHidden 只影响自身，
+        // 子元素是否暴露由子元素自己的 isAccessibilityElement 决定。
         isUserInteractionEnabled = false
+        accessibilityElementsHidden = false
 
         bezel.fillColor = UIColor.black.withAlphaComponent(0.25).cgColor
         bezel.strokeColor = UIColor.white.withAlphaComponent(0.45).cgColor

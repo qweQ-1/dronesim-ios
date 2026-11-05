@@ -73,10 +73,14 @@ public struct Vec3: Equatable, Sendable {
 @inlinable public func lerp(_ a: Float, _ b: Float, _ t: Float) -> Float { a + (b - a) * t }
 
 /// 把角度归一化到 (-π, π]。
+/// 把角度归一化到 (-π, π]。
 @inlinable public func normalizeAngle(_ a: Float) -> Float {
-    var x = a
-    while x > .pi { x -= 2 * .pi }
-    while x <= -.pi { x += 2 * .pi }
+    var x = a.truncatingRemainder(dividingBy: 2 * .pi)
+    if x > .pi {
+        x -= 2 * .pi
+    } else if x <= -.pi {
+        x += 2 * .pi
+    }
     return x
 }
 

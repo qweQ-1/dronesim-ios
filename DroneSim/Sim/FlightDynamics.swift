@@ -62,11 +62,14 @@ public struct FlightDynamics: Sendable {
         var base: Float
         switch input.altitudeMode {
         case .manual:
+            // 油门 0 → 怠速（几乎无推力），悬停点 → hoverRotorSpeed，1 → 满速。
+            // 悬停点在油门行程中的位置由真实转速反推，保证「给到悬停油门就能悬停」。
             let t = clamp(input.throttle, 0, 1)
-            if t < 0.42 {
-                base = lerp(idle, hover, t / 0.42)
+            let hoverThrottle: Float = 0.42
+            if t < hoverThrottle {
+                base = lerp(idle, hover, t / hoverThrottle)
             } else {
-                base = lerp(hover, maxS, (t - 0.42) / 0.58)
+                base = lerp(hover, maxS, (t - hoverThrottle) / (1 - hoverThrottle))
             }
         case .hold:
             // 定高模式：油门由高度控制器给出（外部已算好，throttle 字段直接是推力指令）。
@@ -92,15 +95,17 @@ public struct FlightDynamics: Sendable {
         speeds[3] += rollCmd - pitchCmd - yawCmd
 
         for i in speeds.indices {
-            speeds[i] = clamp(speeds[i], idle * 0.5, maxS)
+            speeds[i] = clamp(speeds[i], 0, maxS)
         }
         return speeds
     }
 
     /// 推力曲线：转速 → 推力（牛顿）。二次律，附带轻微的饱和。
+    ///
+    /// 系数必须与 `DroneSpec.thrustCoefficient` 一致，
+    /// 否则悬停转速算出来对不上实际推力。
     public func thrust(forRotorSpeed omega: Float) -> Float {
-        let ct = self.spec.bladePitch * .pi / 180 * 1.6
-        let nominal = self.spec.airDensity * self.spec.rotorArea * omega * omega * ct
+        let nominal = self.spec.thrustCoefficient * omega * omega
         return min(nominal, self.motor.maxThrust)
     }
 

@@ -60,6 +60,8 @@ final class OverlayButton: UIView {
     func setIdentifier(_ identifier: String) {
         accessibilityIdentifier = identifier
         isAccessibilityElement = true
+        // 必须标成 button 角色，XCUITest 的 app.buttons[...] 才找得到。
+        accessibilityTraits = .button
         accessibilityLabel = titleLabel.text
     }
 

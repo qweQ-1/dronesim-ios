@@ -40,7 +40,7 @@ public struct DroneSpec: Equatable, Sendable {
         frameDragCoefficient: Float = 1.2,
         armLength: Float = 0.166,
         maxRotorSpeed: Float = 1250.0,
-        idleRotorSpeed: Float = 90.0,
+        idleRotorSpeed: Float = 22.0,
         batteryEnergy: Float = 22.0
     ) {
         self.wheelbase = wheelbase
@@ -53,7 +53,10 @@ public struct DroneSpec: Equatable, Sendable {
         self.frameDragCoefficient = frameDragCoefficient
         self.armLength = armLength
         self.maxRotorSpeed = maxRotorSpeed
-        self.idleRotorSpeed = idleRotorSpeed
+        // 怠速推力必须小于悬停推力，否则上锁时机体也会被顶起来。
+        let idleThrust = thrustCoefficient * idleRotorSpeed * idleRotorSpeed
+        let hoverThrust = mass * 9.81 / 4
+        self.idleRotorSpeed = idleThrust < hoverThrust ? idleRotorSpeed : 0
         self.batteryEnergy = batteryEnergy
     }
 
@@ -64,15 +67,21 @@ public struct DroneSpec: Equatable, Sendable {
         return 2 * airDensity * rotorArea * (maxRotorSpeed * rotorArea * 0.5) * ct
     }
 
-    /// 悬停所需的单旋翼转速（牛顿）。
+    /// 单旋翼推力系数（与 `FlightDynamics.thrust(forRotorSpeed:)` 保持一致）。
+    public var thrustCoefficient: Float {
+        airDensity * rotorArea * (bladePitch * .pi / 180 * 1.6)
+    }
+
+    /// 悬停所需的单旋翼转速（rad/s）。
+    ///
+    /// 必须和推力公式用同一个系数，否则算出来的转速对不上实际推力
+    /// （之前这里和 thrust() 的公式不一致，导致怠速推力过大、把机顶上天）。
     public var hoverRotorSpeed: Float {
         let target = mass * 9.81 / 4
-        let ct = bladePitch * .pi / 180 * 1.6
-        // T = ρ * A * v² * CT * k，其中 v = ωr
-        let k = airDensity * rotorArea * ct
-        guard k > 0 else { return idleRotorSpeed }
+        let k = thrustCoefficient
+        guard k > 0 else { return 0 }
         let speed = (target / k).squareRoot()
-        return min(max(speed, idleRotorSpeed), maxRotorSpeed)
+        return min(max(speed, 0), maxRotorSpeed)
     }
 
     /// 机臂推力/扭矩耦合系数：加速转速时额外产生的反扭矩。
