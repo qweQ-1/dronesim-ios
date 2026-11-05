@@ -115,11 +115,18 @@ final class VirtualJoystick: UIView {
     // MARK: 触摸
 
     override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-        // 只有按下点在「离本摇杆中心更近」的那半屏才响应
+        // 只有按下点在「离本摇杆中心更近」的那半屏才响应。
+        // 还要排除屏幕右上角的按钮区，否则摇杆会盖住按钮（触摸和无障碍树都会被挡）。
         guard let window else { return false }
         let screenPoint = convert(point, to: window)
         let midX = window.bounds.midX
-        return screenPoint.x < midX ? isLeftStick : !isLeftStick
+        let isMine = screenPoint.x < midX ? isLeftStick : !isLeftStick
+        guard isMine else { return false }
+        // 按钮区：右侧上方
+        if !isLeftStick && screenPoint.x > window.bounds.width - 110 && screenPoint.y < 560 {
+            return false
+        }
+        return true
     }
 
     /// 是否是左半屏的摇杆（左半屏归属左摇杆）。

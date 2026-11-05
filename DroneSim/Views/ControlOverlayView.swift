@@ -21,6 +21,12 @@ final class ControlOverlayView: UIView {
     let pauseButton = OverlayButton(title: "暂停", symbol: "pause")
     let resetButton = OverlayButton(title: "复位", symbol: "arrow.counterclockwise")
 
+    /// 给 UI 测试用的启动标记。
+    ///
+    /// 放在左上角、1x1 像素、不挡任何可点区域；
+    /// 用来确认 App 已经完成渲染（世界构建完成）。
+    private let readyMarker = UILabel()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         setup()
@@ -40,6 +46,27 @@ final class ControlOverlayView: UIView {
         rightStick.isLeftStick = false
         addSubview(leftStick)
         addSubview(rightStick)
+        // 摇杆铺满半屏，会在无障碍树里遮挡按钮 —— 让它不参与无障碍。
+        leftStick.isAccessibilityElement = false
+        rightStick.isAccessibilityElement = false
+        leftStick.accessibilityElementsHidden = true
+        rightStick.accessibilityElementsHidden = true
+
+        // 启动标记
+        readyMarker.translatesAutoresizingMaskIntoConstraints = false
+        readyMarker.text = "ready"
+        readyMarker.textColor = .clear
+        readyMarker.font = .systemFont(ofSize: 1)
+        readyMarker.isAccessibilityElement = true
+        readyMarker.accessibilityIdentifier = "app.ready"
+        readyMarker.accessibilityLabel = "ready"
+        addSubview(readyMarker)
+        NSLayoutConstraint.activate([
+            readyMarker.topAnchor.constraint(equalTo: safeAreaLayoutGuide.topAnchor),
+            readyMarker.leadingAnchor.constraint(equalTo: safeAreaLayoutGuide.leadingAnchor),
+            readyMarker.widthAnchor.constraint(equalToConstant: 1),
+            readyMarker.heightAnchor.constraint(equalToConstant: 1),
+        ])
 
         // 摇杆视图铺满左右半屏，这样屏幕上任何位置的拖动都能被对应的摇杆捕获，
         // 而摇杆图案只画在实际接触点附近（见 VirtualJoystick 的绘制逻辑）。
@@ -109,5 +136,15 @@ extension ControlOverlayView {
         altitudeButton.setTitle(altitudeHold ? "定高" : "手动")
         motionButton.setTitle(motion ? "体感" : "摇杆")
         pauseButton.setTitle(paused ? "继续" : "暂停")
+    }
+}
+
+
+// MARK: - 就绪标记
+
+extension ControlOverlayView {
+    /// 标记 App 已就绪（UI 测试用）。
+    func markReady() {
+        readyMarker.accessibilityValue = "ready"
     }
 }

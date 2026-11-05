@@ -29,10 +29,12 @@ final class HUDView: UIView {
 
     private func setup() {
         backgroundColor = .clear
-        // 不接收触摸（让下面的控制层可交互），但 HUD 里的文字必须留在无障碍树里，
-        // 否则 XCUITest 找不到。accessibilityElementsHidden 只影响自身，
-        // 子元素是否暴露由子元素自己的 isAccessibilityElement 决定。
+        // 不接收触摸（让下面的控制层可交互）。
+        // HUD 铺满全屏，如果整体参与无障碍树，会盖住控制层里的按钮
+        // （无障碍树是按层级顺序取的）。所以关掉默认的自动暴露，
+        // 只显式打开需要被 UI 测试定位的两个标签。
         isUserInteractionEnabled = false
+        isAccessibilityElement = false
         accessibilityElementsHidden = false
 
         configureLabel(altitudeLabel, size: 34, weight: .heavy, color: .white)
@@ -46,6 +48,8 @@ final class HUDView: UIView {
         altitudeCaption.textColor = UIColor.white.withAlphaComponent(0.7)
         // UI 测试要能找到 HUD。UILabel 默认不是 accessibility element，
         // 必须显式打开，XCUITest 才能按 identifier 定位。
+        // 父视图 HUDView 自身是 accessibilityElementsHidden，
+        // 但这不影响子元素各自成为 accessibility element。
         altitudeCaption.isAccessibilityElement = true
         altitudeCaption.accessibilityIdentifier = "hud.altitude.caption"
         // 速度标签也标一个，UI 测试可以交叉验证 HUD 真的在更新
@@ -184,10 +188,12 @@ final class AttitudeIndicatorView: UIView {
 
     private func setup() {
         backgroundColor = .clear
-        // 不接收触摸（让下面的控制层可交互），但 HUD 里的文字必须留在无障碍树里，
-        // 否则 XCUITest 找不到。accessibilityElementsHidden 只影响自身，
-        // 子元素是否暴露由子元素自己的 isAccessibilityElement 决定。
+        // 不接收触摸（让下面的控制层可交互）。
+        // HUD 铺满全屏，如果整体参与无障碍树，会盖住控制层里的按钮
+        // （无障碍树是按层级顺序取的）。所以关掉默认的自动暴露，
+        // 只显式打开需要被 UI 测试定位的两个标签。
         isUserInteractionEnabled = false
+        isAccessibilityElement = false
         accessibilityElementsHidden = false
 
         bezel.fillColor = UIColor.black.withAlphaComponent(0.25).cgColor

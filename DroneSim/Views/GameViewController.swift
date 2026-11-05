@@ -128,6 +128,7 @@ final class GameViewController: UIViewController {
                                   seed: seed)
             DispatchQueue.main.async {
                 self?.worldReady = true
+                self?.controlOverlay.markReady()
                 self?.hudView.showToast("场景就绪", duration: 1.2)
             }
         }

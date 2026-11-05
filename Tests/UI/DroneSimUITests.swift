@@ -16,9 +16,9 @@ final class DroneSimUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // HUD 里的标签显式设了 accessibilityIdentifier
-        let hud = app.staticTexts["hud.altitude.caption"]
-        if hud.waitForExistence(timeout: 60) {
+        // app.ready 是世界构建完成时设置的标记（1x1 像素，不挡任何东西）
+        let ready = app.staticTexts["app.ready"]
+        if ready.waitForExistence(timeout: 60) {
             return app
         }
 
@@ -28,10 +28,23 @@ final class DroneSimUITests: XCTestCase {
             return app
         }
 
+        // 再兜底：HUD 标签
+        let hud = app.staticTexts["hud.altitude.caption"]
+        if hud.waitForExistence(timeout: 15) {
+            return app
+        }
+
         // 最后的兜底：任意元素
         let anyElement = app.descendants(matching: .any).firstMatch
-        XCTAssertTrue(anyElement.waitForExistence(timeout: 15),
-                      "App 启动后应有可访问元素。当前无障碍树：\n\(app.debugDescription)")
+        if !anyElement.waitForExistence(timeout: 15) {
+            // 把无障碍树写到测试产出的附件里，方便 CI 日志排查
+            let tree = app.debugDescription
+            let attachment = XCTAttachment(string: tree)
+            attachment.name = "accessibility-tree"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+            XCTFail("App 启动后应有可访问元素。无障碍树：\n\(tree)")
+        }
         return app
     }
 
@@ -40,7 +53,13 @@ final class DroneSimUITests: XCTestCase {
         let app = launchApp()
 
         for identifier in ["button.arm", "button.camera", "button.mode", "button.altitude"] {
-            XCTAssertTrue(app.buttons[identifier].exists, "应存在 \(identifier)")
+            if !app.buttons[identifier].exists {
+                let attachment = XCTAttachment(string: app.debugDescription)
+                attachment.name = "accessibility-tree-\(identifier)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+                XCTFail("应存在 \(identifier)")
+            }
         }
     }
 
