@@ -183,9 +183,13 @@ final class VirtualJoystick: UIView {
 final class FlightInputController {
 
     /// 左摇杆：油门 + 偏航。
-    let throttleStick = VirtualJoystick()
+    ///
+    /// ⚠️ 必须是屏幕上显示的那两个摇杆（由 ControlOverlayView 创建）。
+    /// 之前这里自建了一套摇杆实例，而屏幕上显示的是 ControlOverlayView 的
+    /// 另一套 —— 两者从未连接，搓屏幕完全没有反应（「无人机动不了」）。
+    let throttleStick: VirtualJoystick
     /// 右摇杆：横滚 + 俯仰。
-    let attitudeStick = VirtualJoystick()
+    let attitudeStick: VirtualJoystick
 
     private let motionManager = CMMotionManager()
     private(set) var motionEnabled = false
@@ -199,9 +203,9 @@ final class FlightInputController {
     /// 是否使用体感模式（替换右摇杆）。
     var useMotion = false
 
-    init() {
-        throttleStick.radius = 105
-        attitudeStick.radius = 105
+    init(throttleStick: VirtualJoystick, attitudeStick: VirtualJoystick) {
+        self.throttleStick = throttleStick
+        self.attitudeStick = attitudeStick
     }
 
     /// 启动陀螺仪。

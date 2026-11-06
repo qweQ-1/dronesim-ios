@@ -2,79 +2,88 @@ import Foundation
 
 // MARK: - 自稳控制器
 
-/// 飞控自稳模式（Acro / 手动 + 增稳）。
+/// 姿态控制器：把摇杆输入换算成**机体坐标系**的目标角速度。
 ///
-/// 手动模式下摇杆控制的是**角加速度**而不是角速度，真机上就是这样：
-/// 松杆后无人机会保持当前姿态角速度继续旋转，除非有自稳增益把它拉回水平。
-/// 这里提供两种模式：
-/// - `.acro`：纯手动，角速度直接由摇杆给出（考验操控）。
-/// - `.stabilized`：角速度由摇杆给出，同时有回中增益把姿态拉回水平（新手友好）。
+/// 机体轴约定（与 `FlightState.angularVelocity` 一致）：
+/// - `.x` 绕右轴 —— 正为抬头
+/// - `.y` 绕上轴 —— 正为机头左转
+/// - `.z` 绕后轴 —— 正为左滚
+///
+/// 摇杆约定（UI 侧，符合直觉）：roll 正 = 右滚，pitch 正 = 低头前进，yaw 正 = 机头右转。
+/// 两者之间差一个负号，换算集中在本类型里做。
+///
+/// 两种模式：
+/// - `.acro`：摇杆直接给目标角速度（手动，考验操控）。
+/// - `.stabilized`：摇杆给**目标倾角**（Angle 模式），由角度环换算成角速度目标。
+///   这两种的区别很关键：如果自稳也用角速度目标，推住杆会一路滚到翻，
+///   因为回中项（增益 3.4）压不住杆量（4.2）。
 public struct StabilizedController: Sendable {
+
     public enum Mode: Equatable, Sendable {
-        /// 纯手动：摇杆 → 角速度目标。
+        /// 手动：摇杆 → 角速度目标。
         case acro
-        /// 自稳：角速度目标 = 摇杆 + 姿态回中项。
+        /// 自稳：摇杆 → 目标倾角，再经角度环 → 角速度目标。
         case stabilized
     }
 
     public var mode: Mode
-    /// 姿态回中增益（1/s）。
-    public var attitudeGain: Float
-    /// 偏航回中增益（1/s）。
-    public var yawReturnGain: Float
-    /// 最大角速度（rad/s）。
+    /// 自稳模式的最大倾角（弧度）。约 32° —— 常见消费级无人机的限幅。
+    public var maxTiltAngle: Float
+    /// 角度环增益（1/s）：倾角误差 → 角速度目标。
+    public var angleGain: Float
+    /// Acro 模式下摇杆满舵对应的最大角速度（rad/s）。
     public var maxAngularRate: Float
-    /// 摇杆到角速度的最大比例。
-    public var rateAuthority: Float
+    /// 偏航摇杆满舵对应的最大角速度（rad/s）。偏航一般比横滚/俯仰慢。
+    public var maxYawRate: Float
 
-    public init(mode: Mode = .stabilized, attitudeGain: Float = 3.4,
-                yawReturnGain: Float = 0.0, maxAngularRate: Float = 6.5,
-                rateAuthority: Float = 4.2) {
+    public init(mode: Mode = .stabilized,
+                maxTiltAngle: Float = 0.56,
+                angleGain: Float = 6.5,
+                maxAngularRate: Float = 4.5,
+                maxYawRate: Float = 2.6) {
         self.mode = mode
-        self.attitudeGain = attitudeGain
-        self.yawReturnGain = yawReturnGain
+        self.maxTiltAngle = maxTiltAngle
+        self.angleGain = angleGain
         self.maxAngularRate = maxAngularRate
-        self.rateAuthority = rateAuthority
+        self.maxYawRate = maxYawRate
     }
 
-    /// 由摇杆输入计算目标角速度（机体系，rad/s）。
+    /// 由摇杆输入计算目标角速度（机体坐标系，rad/s）。
     public func targetAngularVelocity(input: ControlInput, state: FlightState) -> Vec3 {
-        let roll = clamp(input.roll, -1, 1) * rateAuthority
-        let pitch = clamp(input.pitch, -1, 1) * rateAuthority
-        let yaw = clamp(input.yaw, -1, 1) * rateAuthority
+        // 偏航两种模式都是角速度指令
+        let yawRate = -clamp(input.yaw, -1, 1) * maxYawRate
 
         switch mode {
         case .acro:
+            let pitchRate = -clamp(input.pitch, -1, 1) * maxAngularRate
+            let rollRate = -clamp(input.roll, -1, 1) * maxAngularRate
             return Vec3(
-                clamp(roll, -maxAngularRate, maxAngularRate),
-                clamp(yaw, -maxAngularRate, maxAngularRate),
-                clamp(pitch, -maxAngularRate, maxAngularRate)
+                clamp(pitchRate, -maxAngularRate, maxAngularRate),
+                clamp(yawRate, -maxYawRate, maxYawRate),
+                clamp(rollRate, -maxAngularRate, maxAngularRate)
             )
+
         case .stabilized:
-            // 姿态回中：把当前姿态与目标（水平）的误差折算成角速度修正。
-            // 用机体右/前轴在世界中的水平程度作为误差量。
             let frame = BodyFrame(quaternion: state.attitude)
-            // 期望：机体 up 指向世界 up，机体 forward 保持航向（只回滚俯仰）
-            let upError = Vec3(0, 1, 0) - frame.up
-            let rightAxis = frame.right
-            let forwardAxis = frame.forward
-            let rollCorrection = (upError * rightAxis) * attitudeGain
-            let pitchCorrection = (upError * forwardAxis) * attitudeGain
 
-            // 偏航回中（可选）：把机头航向拉回初始航向
-            var yawCorrection: Float = 0
-            if yawReturnGain > 0 {
-                let heading = atan2(frame.forward.x, -frame.forward.z)
-                let targetHeading = state.initialHeading
-                let delta = normalizeAngle(targetHeading - heading)
-                yawCorrection = delta * yawReturnGain
-            }
+            // 当前姿态角（与 HUD 显示一致）
+            // 俯仰：机体前轴高于地平线的角度，正为抬头
+            let currentPitch = asin(clamp(frame.forward.y, -1, 1))
+            // 横滚：正为右滚（右滚时 right.y 变负，所以取负号）
+            let currentRoll = atan2(-frame.right.y, frame.up.y)
 
-            return Vec3(
-                clamp(roll + rollCorrection, -maxAngularRate, maxAngularRate),
-                clamp(yaw + yawCorrection, -maxAngularRate, maxAngularRate),
-                clamp(pitch + pitchCorrection, -maxAngularRate, maxAngularRate)
-            )
+            // 摇杆 → 目标倾角。摇杆前推是「低头前进」，所以俯仰取负。
+            let targetPitch = -clamp(input.pitch, -1, 1) * maxTiltAngle
+            let targetRoll = clamp(input.roll, -1, 1) * maxTiltAngle
+
+            // 角度环 → 角速度目标
+            // 需要抬头（误差正）→ +x；需要左滚修正（误差使目标更「左」）→ +z
+            let pitchRate = clamp((targetPitch - currentPitch) * angleGain,
+                                  -maxAngularRate, maxAngularRate)
+            let rollRate = clamp(-(targetRoll - currentRoll) * angleGain,
+                                 -maxAngularRate, maxAngularRate)
+
+            return Vec3(pitchRate, clamp(yawRate, -maxYawRate, maxYawRate), rollRate)
         }
     }
 }
@@ -94,9 +103,15 @@ public struct AltitudeController: Sendable {
     /// 最大垂直速度。
     public var maxClimbRate: Float
 
+    /// 悬停油门前馈：PID 只负责「相对悬停的修正量」，
+    /// 这样积分项不用长距离爬升，响应也快得多。
+    public var feedForward: Float
+
     public init(kp: Float = 0.62, ki: Float = 0.22, kd: Float = 0.18,
-                targetAltitude: Float = 2.0, outputMin: Float = 0.30,
-                outputMax: Float = 1.0, maxClimbRate: Float = 6.0) {
+                targetAltitude: Float = 2.0, outputMin: Float = 0.0,
+                outputMax: Float = 1.0, maxClimbRate: Float = 6.0,
+                feedForward: Float = DroneSpec.hoverThrottle) {
+        self.feedForward = feedForward
         self.kp = kp
         self.ki = ki
         self.kd = kd
@@ -114,7 +129,7 @@ public struct AltitudeController: Sendable {
         let derivative = (error - (targetAltitude - (state.altitude + climbRate * dt))) / max(dt, 1e-4)
 
         integral = clamp(integral + error * dt, -2, 2)
-        let output = kp * error + ki * integral + kd * derivative
+        let output = feedForward + kp * error + ki * integral + kd * derivative
         return clamp(output, outputMin, outputMax)
     }
 

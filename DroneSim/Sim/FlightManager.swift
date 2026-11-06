@@ -130,24 +130,31 @@ public final class FlightManager: @unchecked Sendable {
             return
         }
 
-        // --- 自稳：把摇杆输入转成目标角速度，再由 PD 控制器驱动电机 ---
-        if stabilizedEnabled {
-            let targetRate = stabilized.targetAngularVelocity(input: input, state: state)
-            // 姿态 PD：角速度误差 → 附加的电机差动指令
-            let rateError = targetRate - state.angularVelocity
-            let gyroGain: Float = 0.055
-            let attitudeCmd = Vec3(
-                rateError.x * gyroGain,
-                0,  // 偏航单独处理
-                rateError.z * gyroGain
-            )
-            // 把姿态修正折算成 roll/pitch 指令（幅度与姿态修正力矩成正比）
-            effectiveInput.roll = clamp(effectiveInput.roll + attitudeCmd.x, -1, 1)
-            effectiveInput.pitch = clamp(effectiveInput.pitch + attitudeCmd.z, -1, 1)
+        // --- 角速度环 ---
+        //
+        // 摇杆不直接驱动电机混合，而是先给出「目标角速度」，
+        // 再由角速度误差换算成电机差动指令。
+        //
+        // 之前的写法是 `roll = 摇杆 + 误差 * 0.055`：摇杆本身就驱动混合，
+        // 误差项只是个微弱修正，结果推杆后角速度会一路冲到远超目标值（疯狂翻滚），
+        // 而且没有闭环，手感完全失控。
+        //
+        // Acro 与自稳的区别只在目标角速度怎么算（见 StabilizedController）：
+        // 自稳会额外叠加把机体拉回水平的修正项。
+        let targetRate = stabilized.targetAngularVelocity(input: input, state: state)
+        let rateError = targetRate - state.angularVelocity
+        // 误差到指令的增益：约 5.5 rad/s 的误差就打满舵
+        let rateGain: Float = 0.18
 
-            // 偏航：直接用摇杆 + 转速差动已由 mix 处理
-            effectiveInput.yaw = clamp(effectiveInput.yaw, -1, 1)
-        }
+        // 机体轴 → 摇杆约定：
+        //   .x 绕右轴（正为抬头）→ 摇杆 pitch 正为低头
+        //   .y 绕上轴（正为左偏）→ 摇杆 yaw 正为右偏
+        //   .z 绕后轴（正为左滚）→ 摇杆 roll 正为右滚
+        // 第一版直接把 .x 当横滚、.z 当俯仰用，轴向是错位的
+        // （等于横滚杆驱动俯仰轴）。
+        effectiveInput.roll = clamp(-rateError.z * rateGain, -1, 1)
+        effectiveInput.pitch = clamp(-rateError.x * rateGain, -1, 1)
+        effectiveInput.yaw = clamp(-rateError.y * rateGain, -1, 1)
 
         // --- 定高：高度模式由控制器输出油门 ---
         switch input.altitudeMode {

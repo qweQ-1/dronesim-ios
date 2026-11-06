@@ -16,7 +16,11 @@ final class GameViewController: UIViewController {
     // MARK: 引擎
     private var renderer: MetalRenderer?
     private let flight = FlightManager()
-    private let inputController = FlightInputController()
+    /// 输入控制器要接屏幕上显示的那两个摇杆（见 ControlOverlayView）。
+    /// 用 lazy 保证 controlOverlay 先完成初始化。
+    private lazy var inputController = FlightInputController(
+        throttleStick: controlOverlay.leftStick,
+        attitudeStick: controlOverlay.rightStick)
 
     // MARK: 状态
     private var displayLink: CADisplayLink?
@@ -270,7 +274,8 @@ final class GameViewController: UIViewController {
     private func updateHUD() {
         let state = flight.state
         let frame = BodyFrame(quaternion: state.attitude)
-        let roll = atan2(frame.right.y, frame.up.y)
+        // 正为右滚（与 StabilizedController 的角度定义一致）
+        let roll = atan2(-frame.right.y, frame.up.y)
         let pitch = asin(clamp(frame.forward.y, -1, 1))
 
         let modeText: String

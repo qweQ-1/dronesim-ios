@@ -89,6 +89,12 @@ public struct DroneSpec: Equatable, Sendable {
 
     /// 机臂推力/扭矩耦合系数：加速转速时额外产生的反扭矩。
     public var torqueCoupling: Float { bladePitch * .pi / 180 }
+
+    /// 油门行程中「恰好悬停」的位置。
+    ///
+    /// 手动和定高模式共用同一条映射曲线：0 → 怠速，本值 → 悬停转速，1 → 满速。
+    /// 定高控制器也以它作为前馈基准，否则控制器的输出区间会整体偏离悬停点。
+    public static let hoverThrottle: Float = 0.42
 }
 
 /// 电机响应模型（时间常数 + 饱和）。

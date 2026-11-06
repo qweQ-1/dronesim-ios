@@ -59,40 +59,47 @@ public struct FlightDynamics: Sendable {
 
         // 总推力映射：油门 0 → 怠速；油门 1 → 满推力。悬停点大约在 0.42 油门附近，
         // 这里用分段线性，让低油门段更细腻（跟真机一样，怠速到悬停需要一点油门行程）。
+        // 油门曲线（手动与定高共用）：
+        //   0 → 怠速，hoverThrottle → 悬停转速，1 → 满速。
+        //
+        // 定高模式之前走的是 lerp(idle, maxS, throttle)，把 0~1 铺满整个转速范围，
+        // 结果控制器的最小输出（0.30）就已经给出 12.8N（重力的两倍），
+        // 一开定高就往上飞，而且控制器怎么压都压不下来。
+        let t = clamp(input.throttle, 0, 1)
+        let ht = DroneSpec.hoverThrottle
         var base: Float
-        switch input.altitudeMode {
-        case .manual:
-            // 油门 0 → 怠速（几乎无推力），悬停点 → hoverRotorSpeed，1 → 满速。
-            // 悬停点在油门行程中的位置由真实转速反推，保证「给到悬停油门就能悬停」。
-            let t = clamp(input.throttle, 0, 1)
-            let hoverThrottle: Float = 0.42
-            if t < hoverThrottle {
-                base = lerp(idle, hover, t / hoverThrottle)
-            } else {
-                base = lerp(hover, maxS, (t - hoverThrottle) / (1 - hoverThrottle))
-            }
-        case .hold:
-            // 定高模式：油门由高度控制器给出（外部已算好，throttle 字段直接是推力指令）。
-            base = lerp(idle, maxS, clamp(input.throttle, 0, 1))
+        if t < ht {
+            base = lerp(idle, hover, t / ht)
+        } else {
+            base = lerp(hover, maxS, (t - ht) / (1 - ht))
         }
 
-        // 差动幅度：随总推力增大而增大（大油门时姿态控制更"硬"）。
-        let authority = clamp((base - idle) / max(hover - idle, 1), 0, 1)
-        let mixRange = (maxS - idle) * 0.55 * (0.35 + 0.65 * authority)
+        // 差动幅度与当前总推力成比例（真机就是这样：油门越大姿态权限越大）。
+        // 之前用 (maxS - idle) * 0.55 = 675，比悬停转速 41 大一个数量级，
+        // 一推杆就是暴力的翻滚。
+        let mixRange = base * 0.30
 
         let rollCmd = clamp(input.roll, -1, 1) * mixRange
         let pitchCmd = clamp(input.pitch, -1, 1) * mixRange
         let yawCmd = clamp(input.yaw, -1, 1) * mixRange
 
-        // 布局：0 FR, 1 FL, 2 RL, 3 RR
-        // 横滚（右倾）→ 右侧电机加速、左侧减速：FR+, RR+, FL-, RL-
-        // 俯仰（低头前进）→ 前电机加速、后电机减速：FR+, FL+, RL-, RR-
-        // 偏航（机头右转）→ 逆时针电机加速：FL+, RL+, FR-, RR-（+1 为逆时针）
+        // 布局：0 FR(前右), 1 FL(前左), 2 RL(后左), 3 RR(后右)
+        //
+        // 力矩推导（r × F，F 沿机体 +y）：
+        //   绕后轴（横滚）τ_z = +r_x · T
+        //   绕右轴（俯仰）τ_x = -r_z · T
+        // 机体 +z 朝后、+x 朝右，所以：
+        //   右滚（右翼下沉）→ 右侧电机减速、左侧加速
+        //   低头前进（机尾抬起）→ 后侧电机加速、前侧减速
+        //   机头右转 → 顺时针电机（FR、RR）减速
+        //
+        // 第一版把横滚和俯仰写反了（写成了「右滚就右侧加速」），
+        // 实际效果是推杆方向完全相反。
         var speeds = [Float](repeating: base, count: 4)
-        speeds[0] += rollCmd + pitchCmd - yawCmd
-        speeds[1] += -rollCmd + pitchCmd + yawCmd
-        speeds[2] += -rollCmd - pitchCmd + yawCmd
-        speeds[3] += rollCmd - pitchCmd - yawCmd
+        speeds[0] += -rollCmd - pitchCmd - yawCmd   // FR
+        speeds[1] += rollCmd - pitchCmd + yawCmd    // FL
+        speeds[2] += rollCmd + pitchCmd + yawCmd    // RL
+        speeds[3] += -rollCmd + pitchCmd - yawCmd   // RR
 
         for i in speeds.indices {
             speeds[i] = clamp(speeds[i], 0, maxS)
