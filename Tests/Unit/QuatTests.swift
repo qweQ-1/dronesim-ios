@@ -52,9 +52,9 @@ final class QuatTests: XCTestCase {
         // 但它指向地面，自稳会以为机体倒扣，一解锁就翻滚。
         let frame = BodyFrame(forward: Vec3(0, 0, -1), up: Vec3(0, 1, 0))
         XCTAssertGreaterThan(frame.up.y, 0.99, "水平姿态下 up 必须朝上")
-        XCTAssertEqual(frame.up, Vec3(0, 1, 0), accuracy: 1e-5)
-        XCTAssertEqual(frame.right, Vec3(1, 0, 0), accuracy: 1e-5)
-        XCTAssertEqual(frame.forward, Vec3(0, 0, -1), accuracy: 1e-5)
+        XCTAssertEqualVec(frame.up, Vec3(0, 1, 0))
+        XCTAssertEqualVec(frame.right, Vec3(1, 0, 0))
+        XCTAssertEqualVec(frame.forward, Vec3(0, 0, -1))
     }
 
     func testBodyFrameFromQuaternionKeepsUpUpward() {
@@ -65,8 +65,8 @@ final class QuatTests: XCTestCase {
                                  "俯仰 \(angle) rad 时 up 仍应大体朝上，实际 \(frame.up)")
         }
         let identity = BodyFrame(quaternion: .identity)
-        XCTAssertEqual(identity.up, Vec3(0, 1, 0), accuracy: 1e-5)
-        XCTAssertEqual(identity.right, Vec3(1, 0, 0), accuracy: 1e-5)
+        XCTAssertEqualVec(identity.up, Vec3(0, 1, 0))
+        XCTAssertEqualVec(identity.right, Vec3(1, 0, 0))
     }
 
     func testBodyFrameRightHandedConvention() {
