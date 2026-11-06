@@ -31,7 +31,10 @@ public struct BodyFrame: Equatable, Sendable {
             if r.lengthSquared < 1e-10 { r = f.cross(Vec3(0, 0, 1)) }
         }
         self.right = r.normalized
-        self.up = f.cross(self.right).normalized
+        // up = right × forward（不是 forward × right！）
+        // 写成 f.cross(right) 会得到 (0,-1,0)，即水平姿态下 up 指向地面，
+        // 自稳会以为机体倒扣着，一解锁就疯狂修正到翻滚。
+        self.up = self.right.cross(f).normalized
         self.forward = f
     }
 

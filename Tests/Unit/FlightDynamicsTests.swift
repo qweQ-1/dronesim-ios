@@ -133,9 +133,11 @@ final class FlightDynamicsTests: XCTestCase {
         var input = ControlInput(throttle: 0.5, roll: 1.0)
         input.altitudeMode = .manual
         let speeds = dynamics.commandedRotorSpeeds(input: input, state: state)
-        // 右倾 → 右侧电机（0=FR, 3=RR）加速，左侧（1=FL, 2=RL）减速
-        XCTAssertGreaterThan(speeds[0], speeds[1])
-        XCTAssertGreaterThan(speeds[3], speeds[2])
+        // 右滚 → 右翼下沉 → 右侧电机（0=FR, 3=RR）**减速**、左侧（1=FL, 2=RL）加速。
+        // 力矩推导：绕后轴的 τ_z = +r_x·T，机体 +z 朝后，
+        // 所以要右滚必须让左侧（r_x<0）的推力更大。
+        XCTAssertLessThan(speeds[0], speeds[1], "右滚时右侧电机应减速")
+        XCTAssertLessThan(speeds[3], speeds[2], "右滚时后右电机应减速")
     }
 
     func testPitchCommandDifferentializesMotors() {
@@ -144,9 +146,11 @@ final class FlightDynamicsTests: XCTestCase {
         var input = ControlInput(throttle: 0.5, pitch: 1.0)
         input.altitudeMode = .manual
         let speeds = dynamics.commandedRotorSpeeds(input: input, state: state)
-        // 低头前进 → 前电机（0, 1）加速，后电机（2, 3）减速
-        XCTAssertGreaterThan(speeds[0], speeds[2])
-        XCTAssertGreaterThan(speeds[1], speeds[3])
+        // 低头前进 → 机尾抬起 → 后电机（2=RL, 3=RR）加速、前电机（0=FR, 1=FL）减速。
+        // 力矩推导：绕右轴的 τ_x = -r_z·T，前进方向是 -z，
+        // 所以前电机 r_z<0、需要更大的 T 才能让机头下沉。
+        XCTAssertLessThan(speeds[0], speeds[2], "低头时前右电机应减速")
+        XCTAssertLessThan(speeds[1], speeds[3], "低头时前左电机应减速")
     }
 
     func testYawCommandDifferentializesMotorsDiagonally() {
